@@ -30,7 +30,7 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
   // Свои виртуальные часы: таймеры страницы идут по очереди синхронно, без ожидания (Playwright clock отдаёт
   // управление браузеру после каждого таймера — ~4 мс на секунду тренировки, в 300 раз медленнее).
   await page.addInitScript(function () {
-    localStorage.setItem('boxing-timer.settings.v1', JSON.stringify({ rev: 4, stompMode: 'off', prepSec: 10, tickSec: 5 }));
+    localStorage.setItem('boxing-timer.settings.v1', JSON.stringify({ rev: 5, stompMode: 'off', prepSec: 10, tickSec: 5 }));
     var t = 0, seq = 0, q = {}, d0 = Date.now();
     performance.now = function () { return t; };
     Date.now = function () { return d0 + t; };
@@ -85,8 +85,8 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
     var a = r === 10 ? 'last_round' : 'round_' + r;
     ok('спарринг: объявлен раунд ' + r, L.some(function (e) { return e.k === 'say' && e.r === r && e.ph === 'round' && e.v.indexOf(a) === 0; }));
   }
-  ok('спарринг: 10 стартовых сигналов', count(L, 'snd', 'r_bell') === 10, count(L, 'snd', 'r_bell'));
-  ok('спарринг: 9 гонгов на конец раунда', count(L, 'snd', 'r_gong') === 9, count(L, 'snd', 'r_gong'));
+  ok('спарринг: 10 стартовых сигналов', count(L, 'snd', 'r_start') === 10, count(L, 'snd', 'r_start'));
+  ok('спарринг: 9 сигналов на конец раунда', count(L, 'snd', 'r_end') === 9, count(L, 'snd', 'r_end'));
   ok('спарринг: «10 секунд» в каждом раунде', count(L, 'say', function (v) { return /warn_10/.test(v); }) >= 10);
   ok('спарринг: тиканье только в последние 5 с', L.every(function (e) { return e.v !== 'tick' || e.s <= 5; }));
   ok('спарринг: финиш', count(L, 'snd', 'finish') === 1 && count(L, 'say', 'finish') === 1);

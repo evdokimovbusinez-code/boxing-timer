@@ -12,7 +12,7 @@
   var DEFAULTS = {
     rounds: 10, roundSec: 120, restSec: 60, prepSec: 10, warnSec: 10,
     lang: 'ru', voice: true, volume: 1.4, loudRounds: true,
-    countVoice: true, halfVoice: false, sndStart: 'r_bell', sndEnd: 'r_gong', sndWarn: 'clapper', tickSec: 5, font: 'rounded', rev: 4,
+    countVoice: true, halfVoice: false, sndStart: 'r_start', sndEnd: 'r_end', sndWarn: 'clapper', tickSec: 5, font: 'rounded', rev: 5,
     mode: 'spar', bagGoal: 'burst', bagLevel: 'amateur',
     stompMode: 'mic', stompPattern: 'double', stompInRound: false, sens: 0.55,
     calMic: null, calMotion: null, stompModel: null,
@@ -36,6 +36,12 @@
     if (S.sndStart === 'bell') S.sndStart = 'r_bell';
     if (S.sndEnd === 'gong') S.sndEnd = 'r_gong';
     S.rev = 4;
+  }
+  // Владелец прислал свои звонки на старт и конец раунда — ставим всем, кто не выбирал сигнал сам.
+  if (saved && !(saved.rev >= 5)) {
+    if (S.sndStart === 'r_bell') S.sndStart = 'r_start';
+    if (S.sndEnd === 'r_gong') S.sndEnd = 'r_end';
+    S.rev = 5;
   }
   // Язык: у тех, кто уже пользовался, — русский как был; новому — по языку телефона.
   if (!saved || !saved.lang) S.lang = saved ? 'ru' : (/^ru|^uk|^be|^kk/i.test(navigator.language || 'ru') ? 'ru' : 'en');
@@ -113,8 +119,8 @@
 
     // Сигналы на выбор (Настройки → Звук). Возвращает длительность в мс — голос вступает после сигнала.
     // r_* — настоящие записи (sounds/*.mp3, свободные лицензии — sounds/LICENSES.md); нет файла — их не видно в выборе.
-    SIGNALS: ['r_bell', 'r_gong', 'r_whistle', 'r_horn', 'r_sticks', 'bell', 'ding', 'gong', 'whistle', 'horn', 'clapper', 'beeps', 'none'],
-    SAMPLES: ['r_bell', 'r_gong', 'r_whistle', 'r_horn', 'r_sticks', 'tick'],
+    SIGNALS: ['r_start', 'r_end', 'r_bell', 'r_gong', 'r_whistle', 'r_horn', 'r_sticks', 'bell', 'ding', 'gong', 'whistle', 'horn', 'clapper', 'beeps', 'none'],
+    SAMPLES: ['r_start', 'r_end', 'r_bell', 'r_gong', 'r_whistle', 'r_horn', 'r_sticks', 'tick'],
     raw: {}, buf: {},
     // Записи скачиваем сразу, раскодируем, когда есть звук (AudioContext).
     loadSamples: function () {
@@ -153,7 +159,7 @@
       // Запись ещё не готова (или файла нет) — играем похожий синтезированный сигнал.
       if (name.indexOf('r_') === 0) {
         len = this.sample(name, t, 1);
-        if (!len) return this.play({ r_bell: 'bell', r_gong: 'gong', r_whistle: 'whistle', r_horn: 'horn', r_sticks: 'clapper' }[name]);
+        if (!len) return this.play({ r_start: 'bell', r_end: 'gong', r_bell: 'bell', r_gong: 'gong', r_whistle: 'whistle', r_horn: 'horn', r_sticks: 'clapper' }[name]);
         // Голос вступает, когда основной удар отзвучал, — не ждём весь хвост гонга.
         len = Math.min(len, 1.8);
       }
