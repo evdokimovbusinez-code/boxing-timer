@@ -47,6 +47,15 @@
       'meter.model': 'модель: {verdict} {p}%', 'meter.yes': 'топ', 'meter.no': 'не топ', 'meter.hits': 'Сработало: {n}',
 
       'don.title': 'Поддержать разработчика', 'don.sub': 'без рекламы — на кофе автору',
+      'tab.progress': 'Прогресс', 'pr.week': 'Эта неделя', 'pr.weekSub': '{n} из {goal} тренировок', 'pr.goalN': 'цель {n}',
+      'pr.streak': 'Серия', 'pr.streakSub': 'недель подряд с целью', 'pr.best': 'рекорд {n}',
+      'pr.heat': 'Последние 12 недель', 'pr.month': 'Этот месяц', 'pr.total': 'Всего',
+      'pr.line': '{rounds} · {time}', 'pr.weeks': '{n} нед.', 'pr.weekDone': '{w} — цель ✓', 'n.workouts': ['{n} тренировка', '{n} тренировки', '{n} тренировок'], 'st.weekDone': 'цель недели ✓', 'pr.h': '{h} ч {m} мин', 'pr.m': '{m} мин',
+      'rem.on': 'Напоминания', 'rem.sub': 'в выбранные дни и время', 'rem.title': 'Пора на тренировку 🥊',
+      'rem.go': 'Пара раундов — и неделя ближе к цели', 'rem.streak': 'Серия {n} нед. — не прерывай',
+      'rem.denied': 'Разреши уведомления: Настройки iPhone → Раунды', 'wd.short': 'Пн,Вт,Ср,Чт,Пт,Сб,Вс',
+      'st.week': 'неделя {n} из {goal}', 'st.streak': '🔥 {n} нед. подряд',
+      'done.met': 'Цель недели выполнена!', 'wg.streak': 'недель подряд с целью', 'wg.week': 'Неделя', 'done.week': 'Неделя: {n} из {goal}',
       'tab.workout': 'Тренировка', 'tab.sound': 'Звук',
       'tab.hands': 'Без рук', 'tab.general': 'Общее',
 
@@ -163,6 +172,15 @@
       'meter.model': 'model: {verdict} {p}%', 'meter.yes': 'stomp', 'meter.no': 'not a stomp', 'meter.hits': 'Triggered: {n}',
 
       'don.title': 'Support the developer', 'don.sub': 'free, no ads — buy me a coffee',
+      'tab.progress': 'Progress', 'pr.week': 'This week', 'pr.weekSub': '{n} of {goal} workouts', 'pr.goalN': 'goal {n}',
+      'pr.streak': 'Streak', 'pr.streakSub': 'weeks in a row with the goal met', 'pr.best': 'best {n}',
+      'pr.heat': 'Last 12 weeks', 'pr.month': 'This month', 'pr.total': 'All time',
+      'pr.line': '{rounds} · {time}', 'pr.weeks': '{n} wk', 'pr.weekDone': '{w} — goal done ✓', 'n.workouts': ['{n} workout', '{n} workouts'], 'st.weekDone': 'weekly goal ✓', 'pr.h': '{h} h {m} min', 'pr.m': '{m} min',
+      'rem.on': 'Reminders', 'rem.sub': 'on the days and time you pick', 'rem.title': 'Time to train 🥊',
+      'rem.go': 'A few rounds and your week is closer to the goal', 'rem.streak': '{n}-week streak — keep it going',
+      'rem.denied': 'Allow notifications: iPhone Settings → Rounds', 'wd.short': 'Mo,Tu,We,Th,Fr,Sa,Su',
+      'st.week': 'week {n}/{goal}', 'st.streak': '🔥 {n}-week streak',
+      'done.met': 'Weekly goal done!', 'wg.streak': 'weeks in a row', 'wg.week': 'Week', 'done.week': 'This week: {n} of {goal}',
       'tab.workout': 'Workout', 'tab.sound': 'Sound',
       'tab.hands': 'Hands-free', 'tab.general': 'General',
 

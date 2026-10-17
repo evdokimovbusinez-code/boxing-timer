@@ -26,7 +26,7 @@
 ## Стек и правила
 - Без сборки: чистые HTML/CSS/JS, ES5-стиль (`var`, функции) — так и продолжать, никаких фреймворков и бандлеров.
 - `detect.js`, `parse.js`, `voice-phrases.js` — чистая логика без браузерных API (UMD, `globalThis`), всё покрыто тестами.
-- Тесты: `node tests/run.js` (сейчас 110, все зелёные). Любое изменение логики — сначала тест.
+- Тесты: `node tests/run.js` (сейчас 122, все зелёные). Любое изменение логики — сначала тест.
   `node tests/sim.js` — тренировки целиком в браузере на виртуальных часах (спарринг + 24 программы груши за ~10 с):
   что и когда прозвучало. Оба — в `.github/workflows/tests.yml` на каждый push. Новый тест проверять «поломкой»: испортить код — должен упасть.
 - Локально: `python3 -m http.server 8000`. Отладка клавишами: Пробел — старт/пауза, `S` — «топ», `N` — дальше, `R` — сброс.
@@ -51,6 +51,12 @@
   добавляются в `voice-phrases.js`). В `app.js`: `Plan` — длины раундов/отдыха (спарринг — из `S`, груша — из программы),
   `Coach` — смена отрезка внутри раунда звуком (`r_horn` максимум, `r_whistle` сильно/выход, `ding` спокойно) + задание голосом,
   тиканье 5 с перед «сильно»/«максимумом». Меню — `UI.renderBagPlan`: полоса отрезков на раунд + серия. В груше нет «половины раунда» и «10 секунд» по `warnSec` — только счёт 5…1.
+- `stats.js` — статистика (UMD, тесты): неделя, **серия недель** с выполненной целью (`S.weekGoal`, по умолчанию 3 — дневная
+  серия в боксе рвалась бы от дней отдыха), рекорд, календарь 12 недель, месяц/всего. История — `boxing-timer.history.v1`
+  в localStorage (2 года), пишет `Timer.saveLog` на финише и при сбросе: раунд засчитан от половины; тренировка — если дошла до финиша или (прерванная) набрала минуту бокса.
+  Видно: вкладка «Прогресс», строка на экране готовности, строка на финише. `Remind` — напоминания по дням недели
+  (`@capacitor/local-notifications`, только в приложении; дни как в iOS: 1 = воскресенье), текст про серию переписывается
+  после тренировки и при запуске.
 - `sounds/` — записи сигналов (`r_*`, Wikimedia Commons, PD/CC0/CC BY — `LICENSES.md`, подбор `tools/fetch_sounds.py`
   + `.github/workflows/sounds.yml`). Нет файла — играется синтезированный аналог.
 - `parse.js` — разбор фраз и команд на русском и английском («10 раундов по 2 минуты, отдых минута» / «10 rounds of 2 minutes, rest 1 minute»).
@@ -60,10 +66,18 @@
 
 ## Приложение для iPhone (`ios/`, Capacitor 8)
 Тот же сайт внутри нативной обёртки — ради того, что веб не может: тик Taptic Engine на каждое значение колеса
-(`@capacitor/haptics`, `Haptic.native`), всегда горизонтально (Info.plist), экран не гаснет и звук в фоне/при беззвучном
+(`@capacitor/haptics`, `Haptic.native`), напоминания (`@capacitor/local-notifications`, `Remind`), всегда горизонтально (Info.plist), экран не гаснет и звук в фоне/при беззвучном
 (AppDelegate: `isIdleTimerDisabled`, `AVAudioSession .playback + mixWithOthers`, `UIBackgroundModes audio`), без строки
 состояния (`UIStatusBarHidden` — Capacitor читает сам), звук включается без касания. Свойства `CAPBridgeViewController`
 из пакета Capacitor не `open` — подкласс с override (`prefersStatusBarHidden`, `prefersHomeIndicatorAutoHidden`) не собирается.
+- **Виджет** «Раунды» (`ios/App/Widget/RoundsWidget.swift`, цель `RoundsWidget`, SwiftUI/WidgetKit, малый и средний): серия недель,
+  неделя к цели, календарь 12 недель. Данные — `Widget.sync` в app.js → свой плагин `WidgetBridge` (`App/WidgetBridge.swift`,
+  регистрируется в `BridgeViewController.capacitorDidLoad` — метод open, в отличие от свойств) → JSON в UserDefaults общей
+  группы `group.$(BASE_BUNDLE_ID)` (ключ `AppGroup` в обоих Info.plist, права — `*.entitlements`) + `reloadAllTimelines`.
+  Неделю и серию виджет считает сам по дате (в понедельник сразу новая неделя). Идентификаторы — от `BASE_BUNDLE_ID`
+  (приложение, `….widget`); `refresh.sh` передаёт `BASE_BUNDLE_ID`, а не `PRODUCT_BUNDLE_IDENTIFIER` (иначе у виджета был бы
+  тот же id), и сбрасывает профили обоих. App Groups с бесплатным Apple ID работают (проверено у владельца). Через SideStore
+  группа переименовывается при переподписи — виджет там покажет пустое состояние.
 - В `app.js` всё нативное — за флагом `NATIVE` (`Capacitor.isNativePlatform()`); сайт без него работает как раньше.
 - Сборка: сайт остаётся без сборки; `tools/www.sh` копирует нужные файлы в `www/` (в .gitignore), `npm run sync` → `cap sync ios`.
 - `.github/workflows/ios.yml` (macOS-раннер) собирает .ipa **без подписи** и на main выкладывает GitHub Release `app-1.0.N`

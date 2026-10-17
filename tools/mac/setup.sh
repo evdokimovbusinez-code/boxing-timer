@@ -20,8 +20,9 @@ esac
 # Team и идентификатор — из проекта, где их выставил Xcode при первом запуске.
 PBX="ios/App/App.xcodeproj/project.pbxproj"
 TEAM=$(sed -n 's/.*DEVELOPMENT_TEAM = \([A-Z0-9]*\);.*/\1/p' "$PBX" | head -n 1)
-BUNDLE=$(sed -n 's/.*PRODUCT_BUNDLE_IDENTIFIER = \([^;]*\);.*/\1/p' "$PBX" | head -n 1)
-[ -n "$TEAM" ] || fail "В Xcode не выбран Team: App → Signing & Capabilities → Team → «(Personal Team)», потом один раз ▶."
+# Идентификатор — BASE_BUNDLE_ID: от него приложение, виджет (….widget) и общая группа (group.…).
+BUNDLE=$(sed -n 's/.*BASE_BUNDLE_ID = \([^;]*\);.*/\1/p' "$PBX" | head -n 1)
+[ -n "$TEAM" ] || fail "В Xcode не выбран Team: App и RoundsWidget → Signing & Capabilities → Team → «(Personal Team)», потом один раз ▶."
 
 # iPhone — из списка устройств Xcode (должен быть сопряжён: первый запуск по кабелю).
 TMP=$(mktemp)

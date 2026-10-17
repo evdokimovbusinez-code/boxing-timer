@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var P = window.BoxParse, D = window.BoxDetect, PH = window.BoxPhrases, I = window.BoxI18n, BP = window.BoxPrograms;
+  var P = window.BoxParse, D = window.BoxDetect, PH = window.BoxPhrases, I = window.BoxI18n, BP = window.BoxPrograms, ST = window.BoxStats;
   var $ = function (id) { return document.getElementById(id); };
   var now = function () { return performance.now(); };
   // Внутри приложения для iPhone (обёртка Capacitor, папка ios/): экран, поворот и звук держит сам iOS, хаптика — нативная.
@@ -16,7 +16,8 @@
     mode: 'spar', bagGoal: 'burst', bagLevel: 'amateur',
     stompMode: 'mic', stompPattern: 'double', stompInRound: false, sens: 0.55,
     calMic: null, calMotion: null, stompModel: null,
-    commands: false, flip: false, eco: false, dimIdle: true
+    commands: false, flip: false, eco: false, dimIdle: true,
+    weekGoal: 3, remind: false, remindDays: [2, 4, 6], remindTime: '19:00' // дни — как в iOS: 1 = воскресенье
   };
   var PRESETS = [
     { key: 'preset.spar', rounds: 10, roundSec: 120, restSec: 60 },
@@ -53,6 +54,57 @@
   var curVoice = function () { return S.lang === 'en' ? 'voicer-en' : 'voicer'; };
   if (S.volume < 0.4) S.volume = 0.4;
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  /* ================= История тренировок (только на телефоне) — для «Прогресса», серии и напоминаний ================= */
+  var HKEY = 'boxing-timer.history.v1';
+  var Hist = {
+    list: (function () { try { return JSON.parse(localStorage.getItem(HKEY) || '[]') || []; } catch (e) { return []; } })(),
+    add: function (rec) {
+      this.list = ST.add(this.list, rec, rec.d);
+      try { localStorage.setItem(HKEY, JSON.stringify(this.list)); } catch (e) {}
+    },
+    sum: function () { return ST.summary(this.list, ST.today(), S.weekGoal); }
+  };
+
+  /* Виджет на экране «Домой» (только приложение, ios/App/Widget): отдаём раунды по дням и тренировки по неделям —
+     неделю и серию виджет считает сам по сегодняшней дате. Пишет мост WidgetBridge в общую папку App Group. */
+  var Widget = {
+    sync: function () {
+      if (!NATIVE) return;
+      var days = {}, weeks = {};
+      Hist.list.forEach(function (h) { days[h.d] = (days[h.d] || 0) + h.r; var w = ST.weekStart(h.d); weeks[w] = (weeks[w] || 0) + 1; });
+      var json = JSON.stringify({ goal: S.weekGoal, best: Hist.sum().best, days: days, weeks: weeks, t: { streak: L('wg.streak'), week: L('wg.week') } });
+      try { window.Capacitor.nativePromise('WidgetBridge', 'save', { json: json }).catch(function () {}); } catch (e) {}
+    }
+  };
+
+  /* Напоминания — только в приложении (локальные уведомления iOS, без сервера). По дням недели в выбранное время;
+     текст — про серию, переписываем после каждой тренировки и при запуске. */
+  var Remind = {
+    P: function () { var C = window.Capacitor; return NATIVE && C && C.Plugins && C.Plugins.LocalNotifications; },
+    ok: function () { return !!this.P(); },
+    sync: function () {
+      var P = this.P(); if (!P) return;
+      var ids = [1, 2, 3, 4, 5, 6, 7].map(function (d) { return { id: 100 + d }; });
+      P.cancel({ notifications: ids }).catch(function () {}).then(function () {
+        if (!S.remind || !S.remindDays.length) return;
+        var t = S.remindTime.split(':'), x = Hist.sum();
+        var body = x.streak ? L('rem.streak', { n: x.streak }) : L('rem.go');
+        return P.schedule({ notifications: S.remindDays.map(function (d) {
+          return { id: 100 + d, title: L('rem.title'), body: body, schedule: { on: { weekday: d, hour: +t[0], minute: +t[1] }, allowWhileIdle: true } };
+        }) });
+      }).catch(function () {});
+    },
+    all: function () { this.sync(); Widget.sync(); },
+    enable: function (on, done) {
+      var P = this.P(), self = this;
+      if (!on || !P) { S.remind = false; save(); self.sync(); return done(); }
+      P.requestPermissions().then(function (r) {
+        S.remind = r.display === 'granted';
+        if (!S.remind) UI.toast(L('rem.denied'));
+      }).catch(function () { S.remind = false; }).then(function () { save(); self.sync(); done(); });
+    }
+  };
 
   function fmt(sec) {
     sec = Math.max(0, Math.round(sec));
@@ -872,6 +924,7 @@
       Sound.unlock();
       UI.wake();
       this.round = 1;
+      this.log = { r: 0, s: 0 };
       Wake.request();
       if (S.prepSec > 0) this.enter('prep'); else this.enter('round');
     },
@@ -883,6 +936,7 @@
       this.lastSec = Math.ceil((this.dur - carry) / 1000);
       if (p === 'rest' && this.dur <= 0) { this.next(carry, silent); return; }
       App.syncMic(p === 'done' ? 5000 : 0); // в громком режиме микрофон выключается на всю тренировку
+      if (p === 'done') this.saveLog(true); // и когда финиш наступил в фоне без озвучки
       if (!silent) this.announce(p);
       UI.render(true);
       this.schedule();
@@ -890,6 +944,7 @@
     next: function (carry, silent) {
       if (this.phase === 'prep') return this.enter('round', carry, silent);
       if (this.phase === 'round') {
+        this.logRound();
         if (this.round >= Plan.rounds()) return this.enter('done', 0, silent);
         return this.enter('rest', carry, silent);
       }
@@ -917,7 +972,24 @@
       this.paused = false;
       this.next(0, false);
     },
+    // Раунд засчитан, если отработана хотя бы половина (пропуск в самом начале — не тренировка).
+    logRound: function () {
+      if (!this.log) return;
+      var sec = Math.max(0, (this.dur - this.remaining()) / 1000);
+      this.log.s += sec;
+      if (sec * 2 >= this.dur / 1000) this.log.r++;
+    },
+    // В историю: тренировка, пройденная до финиша (любой длины), и прерванная, если бокса набралась минута
+    // (случайный «старт — сброс» статистику не засоряет).
+    saveLog: function (finished) {
+      var g = this.log; this.log = null;
+      if (!g || !(finished ? g.r > 0 : g.s >= 60)) return;
+      Hist.add({ d: ST.today(), r: g.r, s: Math.round(g.s), m: Plan.bag() ? 'bag' : 'spar' });
+      Remind.all();
+    },
     reset: function () {
+      if (this.phase === 'round') this.logRound();
+      this.saveLog();
       this.phase = 'idle'; this.round = 0; this.paused = false; this.epoch++;
       clearTimeout(this.tickTimer);
       Voice.cancel();
@@ -1311,6 +1383,7 @@
       loadTexts(); Voice.loadSystem(); Clips.load(curVoice());
       if (Listen.cmdOn) { Listen.stopCommands(true); Listen.startCommands(); } // распознавание — на новом языке
       this.applyLang(); this.syncSettings(); this.render(true);
+      Remind.all(); // напоминания и подписи виджета — на новом языке
       if (!$('settings').hidden) this.showTab(this.tab);
     },
     applyLook: function () {
@@ -1395,6 +1468,10 @@
 
       this.syncWheels();
       $('summaryText').textContent = L('summary', { rounds: L('n.rounds', { n: NR }), len: fmt(Plan.roundSec(1)), min: Math.round(NR * Plan.roundSec(1) / 60) });
+      if (T.phase === 'done') {
+        var wx = Hist.sum(), met = wx.week.count >= wx.goal;
+        $('summaryWeek').textContent = (met ? L('done.met') : L('done.week', { n: wx.week.count, goal: wx.goal })) + (wx.streak ? ' · ' + L('st.streak', { n: wx.streak }) : '');
+      }
       $('planText').textContent = Plan.bag()
         ? L('plan.bag', { goal: L('goal.' + S.bagGoal), level: L('level.' + S.bagLevel), min: Math.round((S.prepSec + Plan.total()) / 60) })
         : S.rounds + ' × ' + fmt(S.roundSec) + ' · ' + (S.restSec ? L('plan.rest', { t: fmt(S.restSec) }) : L('plan.noRest'));
@@ -1462,6 +1539,10 @@
         var total = S.prepSec + Plan.total();
         hint = live ? L('ready.tapStomp', { how: how }) : L('ready.tap');
         sub = L('total', { min: Math.max(1, Math.round(total / 60)) });
+        if (Hist.list.length) {
+          var x = Hist.sum();
+          sub += ' · ' + (x.week.count >= x.goal ? L('st.weekDone') : L('st.week', { n: x.week.count, goal: x.goal })) + (x.streak ? ' · ' + L('st.streak', { n: x.streak }) : '');
+        }
       }
       if (App.unlocked && on && !live) sub = (sub ? sub + ' · ' : '') + L('st.deaf');
       $('idleHint').textContent = hint;
@@ -1613,6 +1694,20 @@
         b.onclick = function () { S.font = v; save(); self.applyLook(); self.syncOpts(); };
         $('fontOpts').appendChild(b);
       });
+      for (var g = 1; g <= 7; g++) { var o = document.createElement('option'); o.value = g; $('goalPick').appendChild(o); }
+      $('goalPick').onchange = function () { S.weekGoal = +this.value; save(); self.renderProgress(); self.renderStatus(); Remind.all(); };
+      [2, 3, 4, 5, 6, 7, 1].forEach(function (d, i) { // пн…вс; номера — как в iOS (1 = воскресенье)
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'day'; b.dataset.d = d; b.dataset.i = i; b.innerHTML = '<span></span>'; // текст — в span: хаптика лежит первым ребёнком
+        b.onclick = function () {
+          var at = S.remindDays.indexOf(d);
+          if (at >= 0) S.remindDays.splice(at, 1); else S.remindDays.push(d);
+          save(); self.renderProgress(); Remind.sync();
+        };
+        $('remDays').appendChild(b);
+      });
+      $('remTime').onchange = function () { if (this.value) { S.remindTime = this.value; save(); Remind.sync(); } };
+      $('optRemind').onchange = function () { Remind.enable(this.checked, function () { self.renderProgress(); }); };
       if (DONATE_URL) {
         $('donateLink').href = DONATE_URL; $('donate').hidden = false;
         // В приложении обычный переход на чужой сайт Capacitor сам открывает в Safari; на сайте — новая вкладка.
@@ -1693,6 +1788,7 @@
       $('stompModeHint').textContent = L('smh.' + S.stompMode);
       this.syncCal();
       this.voiceStatus();
+      this.renderProgress();
     },
     // Программа груши по раундам: полоса отрезков (цвет = темп, как его слышно) и задание раунда.
     renderBagPlan: function (P) {
@@ -1715,6 +1811,37 @@
       });
       // В легенде — только темпы, которые есть в программе (у новичков нет «максимума»).
       document.querySelectorAll('.bag-legend span').forEach(function (x) { x.hidden = !used[x.className.slice(2)]; });
+    },
+    // «Прогресс»: неделя к цели, серия недель, календарь 12 недель (ярче — больше раундов), месяц и всего.
+    renderProgress: function () {
+      var x = Hist.sum(), wd = L('wd.short').split(',');
+      $('prWeekSub').textContent = x.week.count >= x.goal ? L('pr.weekDone', { w: L('n.workouts', { n: x.week.count }) }) : L('pr.weekSub', { n: x.week.count, goal: x.goal });
+      $('prWeekFill').style.width = Math.min(100, x.week.count / x.goal * 100) + '%';
+      $('goalPick').querySelectorAll('option').forEach(function (o) { o.textContent = L('pr.goalN', { n: o.value }); });
+      $('goalPick').value = String(S.weekGoal);
+      $('prStreak').textContent = L('pr.weeks', { n: x.streak }) + (x.best > x.streak ? ' · ' + L('pr.best', { n: x.best }) : '');
+      var heat = $('prHeat'), html = '';
+      x.grid.forEach(function (w) {
+        w.forEach(function (c) {
+          var lv = c.future ? 'f' : c.r >= 12 ? 4 : c.r >= 8 ? 3 : c.r >= 4 ? 2 : c.r > 0 ? 1 : 0;
+          html += '<i class="l' + lv + (c.d === ST.today() ? ' today' : '') + '" title="' + c.d + (c.r ? ' · ' + c.r : '') + '"></i>';
+        });
+      });
+      heat.innerHTML = html;
+      var line = function (a) {
+        var t = a.min >= 60 ? L('pr.h', { h: Math.floor(a.min / 60), m: a.min % 60 }) : L('pr.m', { m: a.min });
+        return L('pr.line', { rounds: L('n.rounds', { n: a.rounds }), time: t });
+      };
+      $('prMonth').textContent = line(x.month); $('prMonthN').textContent = L('n.workouts', { n: x.month.count });
+      $('prTotal').textContent = line(x.total); $('prTotalN').textContent = L('n.workouts', { n: x.total.count });
+      $('remGroup').hidden = !Remind.ok();
+      $('optRemind').checked = S.remind;
+      $('remWhen').hidden = !S.remind;
+      $('remTime').value = S.remindTime;
+      document.querySelectorAll('#remDays .day').forEach(function (b) {
+        b.lastChild.textContent = wd[+b.dataset.i];
+        b.classList.toggle('on', S.remindDays.indexOf(+b.dataset.d) >= 0);
+      });
     },
     syncPresets: function () {
       document.querySelectorAll('.preset').forEach(function (b) {
@@ -1840,6 +1967,7 @@
   Sound.loadSamples();
   Clips.load(curVoice());
   Plan.refresh();
+  Remind.all(); // текст напоминаний — про текущую серию; виджет — свежие данные
   UI.syncSettings();
   UI.render(true);
   // В приложении звук разрешён без касания — таймер сразу готов, топот слышно с первой секунды.

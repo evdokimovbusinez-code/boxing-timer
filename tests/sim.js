@@ -90,6 +90,10 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
   ok('спарринг: «10 секунд» в каждом раунде', count(L, 'say', function (v) { return /warn_10/.test(v); }) >= 10);
   ok('спарринг: тиканье только в последние 5 с', L.every(function (e) { return e.v !== 'tick' || e.s <= 5; }));
   ok('спарринг: финиш', count(L, 'snd', 'finish') === 1 && count(L, 'say', 'finish') === 1);
+  var hist = function () { return page.evaluate(function () { return JSON.parse(localStorage.getItem('boxing-timer.history.v1') || '[]'); }); };
+  var H = await hist();
+  ok('история: спарринг записан — 10 раундов, 20 мин бокса', H.length === 1 && H[0].r === 10 && H[0].s === 1200 && H[0].m === 'spar', H);
+  ok('финиш: итог недели', /1/.test(await page.evaluate(function () { return document.getElementById('summaryWeek').textContent; })));
 
   // Все программы груши: раунды, горн на каждый максимум, свисток на «сильно», задание каждого раунда, финиш.
   for (var i = 0; i < BP.PROGRAMS.length; i++) {
@@ -115,6 +119,32 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
     ok(id + ': раунды по программе', !bad.length, bad.slice(0, 4));
     ok(id + ': финиш', count(G, 'snd', 'finish') === 1);
   }
+
+  H = await hist();
+  ok('история: каждая программа груши записана', H.length === 1 + BP.PROGRAMS.length && H.slice(1).every(function (h) { return h.m === 'bag' && h.r > 0; }), H.length);
+  // Прервал тренировку: 90 с первого раунда — засчитан раунд; 30 с — не тренировка.
+  var partial = function (sec) {
+    return page.evaluate(function (sec) {
+      var B = window.BoxTimer; B.S.mode = 'spar'; B.S.prepSec = 0; B.Plan.refresh(); B.Timer.start(); __advance(sec * 1000); B.Timer.reset();
+    }, sec);
+  };
+  await partial(90); H = await hist();
+  ok('история: прерванная на 90-й секунде — 1 раунд, 90 с', H.length === 2 + BP.PROGRAMS.length && H[H.length - 1].r === 1 && H[H.length - 1].s === 90, H[H.length - 1]);
+  await partial(30);
+  ok('история: 30 секунд — не тренировка, не пишем', (await hist()).length === 2 + BP.PROGRAMS.length);
+  // Короткая, но пройденная до финиша (1 × 0:30) — засчитана.
+  await page.evaluate(function () {
+    var B = window.BoxTimer; B.S.rounds = 1; B.S.roundSec = 30; B.S.prepSec = 0; B.Plan.refresh(); B.Timer.start(); __advance(31000);
+  });
+  H = await hist();
+  ok('история: 1 раунд × 0:30 до финиша — засчитана', H.length === 3 + BP.PROGRAMS.length && H[H.length - 1].r === 1 && H[H.length - 1].s === 30, H[H.length - 1]);
+  await page.evaluate(function () { var B = window.BoxTimer; B.Timer.reset(); B.S.rounds = 10; B.S.roundSec = 180; });
+  await partial(80); H = await hist();
+  ok('история: раунд 3:00 прерван на 80-й секунде — минуты есть, раунд не засчитан', H.length === 4 + BP.PROGRAMS.length && H[H.length - 1].r === 0 && H[H.length - 1].s === 80, H[H.length - 1]);
+  await page.evaluate(function () { window.BoxTimer.S.roundSec = 120; });
+  var idle = await page.evaluate(function () { return document.getElementById('idleSub').textContent; });
+  ok('готовность: в строке — неделя и серия (за неделю 26 тренировок — цель выполнена)', /цель недели ✓ · 🔥 1 нед/.test(idle), idle);
+  await page.evaluate(function () { window.BoxTimer.S.prepSec = 10; });
 
   // Цифры влезают между вырезом и краем: iPhone с чёлкой/островом в горизонтали × все шрифты × все состояния экрана.
   // (Шрифтов iPhone в песочнице нет — проверяются запасные; табло DSEG7 — настоящее.)
