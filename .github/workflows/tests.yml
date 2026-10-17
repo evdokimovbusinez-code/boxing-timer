@@ -1,0 +1,20 @@
+name: Тесты
+
+# Каждый push и PR: логика (tests/run.js) и прогон тренировок целиком в браузере на ускоренных часах (tests/sim.js) —
+# спарринг и все 24 программы груши, ~10 с. Красный — что-то из сказанного/прозвучавшего сломалось.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tests/run.js
+      - run: npm i --no-save --no-audit --no-fund playwright@1.56.1 && npx playwright install --with-deps chromium
+      - run: node tests/sim.js

@@ -7,7 +7,7 @@ name: Приложение для iPhone
 on:
   push:
     branches: [main]
-    paths: ['*.js', '*.html', '*.css', 'manifest.webmanifest', 'icons/**', 'media/**', 'voices/**', 'ios/**',
+    paths: ['*.js', '*.html', '*.css', 'manifest.webmanifest', 'icons/**', 'media/**', 'voices/**', 'sounds/**', 'ios/**',
             'package.json', 'package-lock.json', 'capacitor.config.json', 'tools/www.sh', 'tools/sidestore_source.py',
             '.github/workflows/ios.yml']
   pull_request:
