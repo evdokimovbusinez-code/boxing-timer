@@ -59,6 +59,7 @@ jobs:
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             build | tail -n 40
           test -x build/dd/Build/Products/Release-iphoneos/App.app/App
+          test -x build/dd/Build/Products/Release-iphoneos/App.app/PlugIns/RoundsWidget.appex/RoundsWidget # виджет внутри
           mkdir -p build/Payload
           cp -R build/dd/Build/Products/Release-iphoneos/App.app build/Payload/
           (cd build && zip -qry Rounds.ipa Payload)

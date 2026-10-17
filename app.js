@@ -66,6 +66,18 @@
     sum: function () { return ST.summary(this.list, ST.today(), S.weekGoal); }
   };
 
+  /* Виджет на экране «Домой» (только приложение, ios/App/Widget): отдаём раунды по дням и тренировки по неделям —
+     неделю и серию виджет считает сам по сегодняшней дате. Пишет мост WidgetBridge в общую папку App Group. */
+  var Widget = {
+    sync: function () {
+      if (!NATIVE) return;
+      var days = {}, weeks = {};
+      Hist.list.forEach(function (h) { days[h.d] = (days[h.d] || 0) + h.r; var w = ST.weekStart(h.d); weeks[w] = (weeks[w] || 0) + 1; });
+      var json = JSON.stringify({ goal: S.weekGoal, best: Hist.sum().best, days: days, weeks: weeks, t: { streak: L('wg.streak'), week: L('wg.week') } });
+      try { window.Capacitor.nativePromise('WidgetBridge', 'save', { json: json }).catch(function () {}); } catch (e) {}
+    }
+  };
+
   /* Напоминания — только в приложении (локальные уведомления iOS, без сервера). По дням недели в выбранное время;
      текст — про серию, переписываем после каждой тренировки и при запуске. */
   var Remind = {
@@ -83,6 +95,7 @@
         }) });
       }).catch(function () {});
     },
+    all: function () { this.sync(); Widget.sync(); },
     enable: function (on, done) {
       var P = this.P(), self = this;
       if (!on || !P) { S.remind = false; save(); self.sync(); return done(); }
@@ -971,7 +984,7 @@
       var g = this.log; this.log = null;
       if (!g || g.s < 60) return;
       Hist.add({ d: ST.today(), r: g.r, s: Math.round(g.s), m: Plan.bag() ? 'bag' : 'spar' });
-      Remind.sync();
+      Remind.all();
     },
     reset: function () {
       if (this.phase === 'round') this.logRound();
@@ -1369,6 +1382,7 @@
       loadTexts(); Voice.loadSystem(); Clips.load(curVoice());
       if (Listen.cmdOn) { Listen.stopCommands(true); Listen.startCommands(); } // распознавание — на новом языке
       this.applyLang(); this.syncSettings(); this.render(true);
+      Remind.all(); // напоминания и подписи виджета — на новом языке
       if (!$('settings').hidden) this.showTab(this.tab);
     },
     applyLook: function () {
@@ -1680,7 +1694,7 @@
         $('fontOpts').appendChild(b);
       });
       for (var g = 1; g <= 7; g++) { var o = document.createElement('option'); o.value = g; $('goalPick').appendChild(o); }
-      $('goalPick').onchange = function () { S.weekGoal = +this.value; save(); self.renderProgress(); self.renderStatus(); Remind.sync(); };
+      $('goalPick').onchange = function () { S.weekGoal = +this.value; save(); self.renderProgress(); self.renderStatus(); Remind.all(); };
       [2, 3, 4, 5, 6, 7, 1].forEach(function (d, i) { // пн…вс; номера — как в iOS (1 = воскресенье)
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'day'; b.dataset.d = d; b.dataset.i = i; b.innerHTML = '<span></span>'; // текст — в span: хаптика лежит первым ребёнком
@@ -1952,7 +1966,7 @@
   Sound.loadSamples();
   Clips.load(curVoice());
   Plan.refresh();
-  Remind.sync(); // текст напоминаний — про текущую серию
+  Remind.all(); // текст напоминаний — про текущую серию; виджет — свежие данные
   UI.syncSettings();
   UI.render(true);
   // В приложении звук разрешён без касания — таймер сразу готов, топот слышно с первой секунды.

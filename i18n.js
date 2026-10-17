@@ -55,7 +55,7 @@
       'rem.go': 'Пара раундов — и неделя ближе к цели', 'rem.streak': 'Серия {n} нед. — не прерывай',
       'rem.denied': 'Разреши уведомления: Настройки iPhone → Раунды', 'wd.short': 'Пн,Вт,Ср,Чт,Пт,Сб,Вс',
       'st.week': 'неделя {n} из {goal}', 'st.streak': '🔥 {n} нед. подряд',
-      'done.met': 'Цель недели выполнена!', 'done.week': 'Неделя: {n} из {goal}',
+      'done.met': 'Цель недели выполнена!', 'wg.streak': 'недель подряд с целью', 'wg.week': 'Неделя', 'done.week': 'Неделя: {n} из {goal}',
       'tab.workout': 'Тренировка', 'tab.sound': 'Звук',
       'tab.hands': 'Без рук', 'tab.general': 'Общее',
 
@@ -180,7 +180,7 @@
       'rem.go': 'A few rounds and your week is closer to the goal', 'rem.streak': '{n}-week streak — keep it going',
       'rem.denied': 'Allow notifications: iPhone Settings → Rounds', 'wd.short': 'Mo,Tu,We,Th,Fr,Sa,Su',
       'st.week': 'week {n}/{goal}', 'st.streak': '🔥 {n}-week streak',
-      'done.met': 'Weekly goal done!', 'done.week': 'This week: {n} of {goal}',
+      'done.met': 'Weekly goal done!', 'wg.streak': 'weeks in a row', 'wg.week': 'Week', 'done.week': 'This week: {n} of {goal}',
       'tab.workout': 'Workout', 'tab.sound': 'Sound',
       'tab.hands': 'Hands-free', 'tab.general': 'General',
 

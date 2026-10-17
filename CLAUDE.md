@@ -70,6 +70,14 @@
 (AppDelegate: `isIdleTimerDisabled`, `AVAudioSession .playback + mixWithOthers`, `UIBackgroundModes audio`), без строки
 состояния (`UIStatusBarHidden` — Capacitor читает сам), звук включается без касания. Свойства `CAPBridgeViewController`
 из пакета Capacitor не `open` — подкласс с override (`prefersStatusBarHidden`, `prefersHomeIndicatorAutoHidden`) не собирается.
+- **Виджет** «Раунды» (`ios/App/Widget/RoundsWidget.swift`, цель `RoundsWidget`, SwiftUI/WidgetKit, малый и средний): серия недель,
+  неделя к цели, календарь 12 недель. Данные — `Widget.sync` в app.js → свой плагин `WidgetBridge` (`App/WidgetBridge.swift`,
+  регистрируется в `BridgeViewController.capacitorDidLoad` — метод open, в отличие от свойств) → JSON в UserDefaults общей
+  группы `group.$(BASE_BUNDLE_ID)` (ключ `AppGroup` в обоих Info.plist, права — `*.entitlements`) + `reloadAllTimelines`.
+  Неделю и серию виджет считает сам по дате (в понедельник сразу новая неделя). Идентификаторы — от `BASE_BUNDLE_ID`
+  (приложение, `….widget`); `refresh.sh` передаёт `BASE_BUNDLE_ID`, а не `PRODUCT_BUNDLE_IDENTIFIER` (иначе у виджета был бы
+  тот же id), и сбрасывает профили обоих. App Groups с бесплатным Apple ID работают (проверено у владельца). Через SideStore
+  группа переименовывается при переподписи — виджет там покажет пустое состояние.
 - В `app.js` всё нативное — за флагом `NATIVE` (`Capacitor.isNativePlatform()`); сайт без него работает как раньше.
 - Сборка: сайт остаётся без сборки; `tools/www.sh` копирует нужные файлы в `www/` (в .gitignore), `npm run sync` → `cap sync ios`.
 - `.github/workflows/ios.yml` (macOS-раннер) собирает .ipa **без подписи** и на main выкладывает GitHub Release `app-1.0.N`

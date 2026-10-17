@@ -37,14 +37,14 @@ main() {
   if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then npm ci --no-audit --no-fund || return 1; fi
   npm run -s sync >/dev/null || { notify "Не собралось (npm). Журнал: ~/Library/Logs/boxing-timer-refresh.log"; return 1; }
 
-  # Удаляем закэшированный профиль этого приложения — Xcode попросит у Apple новый (с новыми 7 днями).
-  [ "$need" = update ] || drop_profiles "$BUNDLE"
+  # Удаляем закэшированные профили приложения и виджета — Xcode попросит у Apple новые (с новыми 7 днями).
+  [ "$need" = update ] || { drop_profiles "$BUNDLE"; drop_profiles "$BUNDLE.widget"; }
 
   local APP="build/mac/Build/Products/Release-iphoneos/App.app"
   xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
     -destination 'generic/platform=iOS' -derivedDataPath build/mac \
     -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
-    CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$TEAM" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE" \
+    CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$TEAM" BASE_BUNDLE_ID="$BUNDLE" \
     build -quiet || { [ "$need" = update ] || notify "Не собралось в Xcode. Журнал: ~/Library/Logs/boxing-timer-refresh.log"; return 1; }
 
   local newexp
