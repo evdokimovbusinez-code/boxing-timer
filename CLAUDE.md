@@ -57,6 +57,10 @@
   с `Rounds.ipa` и `apps.json` (источник SideStore, `tools/sidestore_source.py`). Владелец ставит через **SideStore**
   (бесплатный Apple ID, продление раз в 7 дней на телефоне); источник:
   `https://github.com/evdokimovbusinez-code/boxing-timer/releases/latest/download/apps.json`.
+- Без SideStore: Xcode на Mac владельца + `tools/mac/setup.sh` (LaunchAgent раз в час → `tools/mac/refresh.sh`):
+  за сутки до конца 7-дневной подписи удаляет кэш профиля, пересобирает (`xcodebuild -allowProvisioningUpdates`,
+  Team/Bundle/iPhone — из `~/Library/Application Support/boxing-timer/config`) и ставит по Wi-Fi (`xcrun devicectl`);
+  обновления `main` ставит только ночью (2–6 ч). Клон на Mac — `~/boxing-timer`, локальные правки там затираются (`git reset --hard`).
 - Новый плагин Capacitor → `npm i` + `npx cap sync ios` (обновит `ios/App/CapApp-SPM/Package.swift`) и закоммитить.
 - Голосовые команды (`webkitSpeechRecognition`) в WKWebView могут не работать — тогда кнопка «Голосом» скрыта (`Listen.supported`).
 
