@@ -100,80 +100,97 @@ body.eco[data-phase="round"][data-warn="1"] #root { animation: ecoWarn 1s steps(
 body.eco[data-phase="rest"][data-warn="1"] #root,
 body.eco[data-phase="prep"][data-warn="1"] #root { animation: none; }
 @keyframes ecoWarn { 0% { color: var(--warn); } 50% { color: #ff3b4f; } }
-body.eco .chip { background: rgba(255, 255, 255, .08); }
 
-/* ---------- Сцена ---------- */
+/* ---------- Сцена ----------
+   Сверху — фаза и раунд, в центре — одно главное (план, часы или итог), снизу — полоса или кнопки. */
 #stage {
   position: absolute; inset: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto auto auto;
-  padding: calc(10px + var(--st)) calc(16px + var(--sr)) calc(12px + var(--sb)) calc(16px + var(--sl));
-  gap: 6px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  padding: calc(8px + var(--st)) calc(16px + var(--sr)) calc(12px + var(--sb)) calc(16px + var(--sl));
+  gap: 8px;
 }
 
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
-.round-label { font-weight: 800; font-size: clamp(18px, 3.6cqw, 32px); letter-spacing: .04em; white-space: nowrap; }
-.round-label b { font-size: 1.25em; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; }
+.phase-label, .round-label { font-weight: 900; font-size: clamp(24px, 5.4cqw, 52px); line-height: 1.05; letter-spacing: .06em; white-space: nowrap; }
+.top-right { display: flex; align-items: center; gap: 14px; flex: none; }
+.round-label small { font-size: .5em; font-weight: 800; letter-spacing: .08em; opacity: .7; margin-right: .3em; vertical-align: .3em; }
 .round-label span { opacity: .55; }
+.live { display: flex; gap: 8px; font-size: clamp(18px, 3cqw, 26px); opacity: .75; }
 
-.chips { display: flex; gap: 8px; align-items: center; }
+.chips { display: none; gap: 8px; align-items: center; }
 .chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 40px; padding: 0 14px;
-  border-radius: 20px; border: 0;
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 44px; padding: 0 16px;
+  border-radius: 22px; border: 0;
   background: rgba(255, 255, 255, .1);
-  font-size: 15px; font-weight: 700;
+  font-size: 16px; font-weight: 700;
   cursor: pointer;
 }
-body[data-phase="prep"]:not(.eco) .chip { background: rgba(0, 0, 0, .12); }
-.chip svg { font-size: 18px; }
-.chip-icon { width: 44px; padding: 0; justify-content: center; }
-.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .25; }
-.chip.listening .dot { background: #4cd964; opacity: 1; box-shadow: 0 0 0 3px rgba(76, 217, 100, .25); }
-body:not(.eco)[data-phase="round"] .chip.listening .dot, body:not(.eco)[data-phase="rest"] .chip.listening .dot { background: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.3); }
-body.running #chipVoice, body.running #chipSettings { display: none; }
+.chip svg { font-size: 20px; }
+.chip-icon { width: 48px; padding: 0; justify-content: center; }
 
-#clockWrap { display: grid; place-items: center; min-height: 0; }
-#clock {
+.center { display: grid; place-items: center; min-height: 0; }
+.center > * { grid-area: 1 / 1; }
+.clock {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
   letter-spacing: -.03em;
   line-height: .9;
-  font-size: min(36cqw, 66cqh);
+  font-size: min(40cqw, 74cqh);
   white-space: nowrap;
 }
-#clock.long { font-size: min(29cqw, 60cqh); }
+.clock.long { font-size: min(31cqw, 74cqh); }
 
-.phase-row { display: flex; align-items: baseline; justify-content: center; gap: 18px; flex-wrap: wrap; }
-.phase-label { font-weight: 900; font-size: clamp(22px, 5cqw, 46px); letter-spacing: .12em; }
-.next-label { font-weight: 600; font-size: clamp(14px, 2.4cqw, 22px); opacity: .7; }
+/* План до старта: три самых частых настройки — крупно и сразу правятся */
+.plan { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: 100%; max-width: 980px; }
+.plan-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 10px 12px; border-radius: 22px; background: rgba(255, 255, 255, .06); min-width: 0; }
+.plan-lbl { font-size: clamp(13px, 2cqw, 17px); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .6; }
+.plan-val { font-size: min(10cqw, 19cqh); font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.plan-btns { display: flex; gap: 8px; width: 100%; }
+.plan-btns button {
+  flex: 1; height: 52px; border: 0; border-radius: 14px;
+  background: rgba(255, 255, 255, .1); font-size: 30px; font-weight: 600; line-height: 1; cursor: pointer;
+}
+.plan-btns button:active { background: rgba(255, 255, 255, .22); }
+
+.summary { text-align: center; }
+.summary-title { font-weight: 900; font-size: min(17cqw, 36cqh); letter-spacing: .08em; line-height: 1; color: var(--accent); }
+.summary-text { margin-top: 2cqh; font-weight: 700; font-size: clamp(16px, 3cqw, 28px); opacity: .8; }
 
 /* Полоса прогресса: одна CSS-анимация на всю фазу вместо перерисовки 60 раз в секунду */
-.bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .14); overflow: hidden; }
+.bar { height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .18); overflow: hidden; }
 body[data-phase="prep"]:not(.eco) .bar { background: rgba(0, 0, 0, .14); }
-.bar i { display: block; height: 100%; width: 100%; background: currentColor; border-radius: 4px; transform-origin: 0 50%; transform: scaleX(0); will-change: transform; }
-
-.pips { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; min-height: 12px; }
-.pips i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; opacity: .5; }
-.pips i.done { background: currentColor; opacity: .85; }
-.pips i.now { background: currentColor; opacity: 1; transform: scale(1.25); }
+.bar i { display: block; height: 100%; width: 100%; background: currentColor; border-radius: 5px; transform-origin: 0 50%; transform: scaleX(0); will-change: transform; }
 
 .idle-controls { display: none; flex-direction: column; align-items: center; gap: 8px; }
-body[data-phase="idle"] .idle-controls,
-body[data-phase="done"] .idle-controls { display: flex; }
+.idle-btns { display: flex; gap: 10px; }
+.pause-controls { display: none; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.pause-controls .hint { flex-basis: 100%; }
 
-/* Старт и финиш: место под кнопку */
-body[data-phase="idle"] .phase-row,
-body[data-phase="idle"] .bar, body[data-phase="done"] .bar,
-body[data-phase="idle"] .pips, body[data-phase="done"] .pips { display: none; }
-body[data-phase="idle"] #stage, body[data-phase="done"] #stage { grid-template-rows: auto 1fr auto auto; }
-body[data-phase="idle"] #clock { font-size: min(30cqw, 50cqh); }
-body[data-phase="done"] #clock { font-size: min(26cqw, 40cqh); }
+/* Что видно в каждом состоянии */
+.plan, .clock, .summary, .bar, #btnEdit { display: none; }
+body[data-phase="idle"] .plan { display: grid; }
+body[data-phase="idle"] .chips, body[data-phase="done"] .chips { display: flex; }
+body[data-phase="idle"] .idle-controls, body[data-phase="done"] .idle-controls { display: flex; }
+body[data-phase="idle"] .round-label, body[data-phase="done"] .round-label,
+body[data-phase="idle"] .live, body[data-phase="done"] .live { display: none; }
+body[data-phase="done"] .summary { display: block; }
+body[data-phase="done"] #btnEdit { display: inline-flex; }
+body[data-phase="prep"] .clock, body[data-phase="round"] .clock, body[data-phase="rest"] .clock { display: block; }
+body[data-paused="0"][data-phase="prep"] .bar, body[data-paused="0"][data-phase="round"] .bar, body[data-paused="0"][data-phase="rest"] .bar { display: block; }
+body[data-paused="1"] .pause-controls { display: flex; }
+body[data-paused="1"] .clock { opacity: .5; font-size: min(40cqw, 56cqh); }
+body[data-paused="1"] .phase-label { color: var(--warn); }
 
-.hint { margin: 0; text-align: center; font-size: 14px; opacity: .65; line-height: 1.35; }
+.hint { margin: 0; text-align: center; font-size: 15px; opacity: .7; line-height: 1.35; }
 .hint.small { font-size: 13px; }
 .hint.left { text-align: left; margin: 0 0 8px; }
+.status { display: flex; align-items: center; gap: 8px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; opacity: .35; flex: none; }
+.dot.on { background: #34c759; opacity: 1; box-shadow: 0 0 0 3px rgba(52, 199, 89, .25); }
+.dot[hidden] { display: none; }
 
 /* ---------- Кнопки ---------- */
 .btn {
@@ -187,11 +204,15 @@ body[data-phase="done"] #clock { font-size: min(26cqw, 40cqh); }
 .btn:active { transform: scale(.97); }
 .btn svg { font-size: 20px; }
 .btn-start {
-  min-height: 60px; min-width: 240px;
+  min-height: 60px; min-width: 260px;
   font-size: 22px; font-weight: 800; letter-spacing: .04em;
   background: var(--accent); color: #fff;
 }
-.btn-big { min-height: 64px; font-size: 22px; background: var(--fg); color: #111; }
+.btn-big { min-height: 64px; padding: 0 28px; font-size: 22px; background: var(--fg); color: #111; }
+.btn-icon { width: 64px; padding: 0; }
+.btn-wide { min-height: 60px; min-width: 150px; font-size: 19px; }
+.btn.confirm { background: var(--accent); color: #fff; }
+.btn-done { min-height: 44px; padding: 0 18px; font-size: 16px; border-radius: 22px; }
 .btn-small { min-height: 38px; padding: 0 12px; font-size: 14px; border-radius: 10px; }
 .btn-accent { background: var(--accent); color: #fff; }
 .btn:disabled { opacity: .45; }
@@ -217,13 +238,6 @@ body[data-phase="done"] #clock { font-size: min(26cqw, 40cqh); }
   position: absolute; inset: 0; z-index: 20;
   padding: calc(16px + var(--st)) calc(16px + var(--sr)) calc(16px + var(--sb)) calc(16px + var(--sl));
 }
-.pause-layer {
-  background: rgba(14, 14, 17, .94);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
-  color: var(--fg);
-}
-.pause-title { font-weight: 900; font-size: clamp(36px, 9cqw, 80px); letter-spacing: .14em; }
-.pause-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
 .gate { background: var(--bg); display: grid; place-items: center; z-index: 40; overflow: auto; color: var(--fg); }
 .gate-card { max-width: 460px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
@@ -279,7 +293,7 @@ body[data-phase="done"] #clock { font-size: min(26cqw, 40cqh); }
 .preset span { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .preset.active { border-color: var(--accent); }
 
-.steppers { display: grid; gap: 8px; }
+.steppers { display: grid; gap: 8px; margin-top: 12px; }
 .stepper { display: flex; align-items: center; gap: 10px; }
 .stepper .lbl { flex: 1; font-size: 16px; font-weight: 600; }
 .stepper .val { min-width: 68px; text-align: center; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -291,7 +305,8 @@ body[data-phase="done"] #clock { font-size: min(26cqw, 40cqh); }
 .row em { display: block; font-style: normal; font-size: 12px; color: var(--muted); margin-top: 2px; }
 .row select { max-width: 55%; height: 38px; border-radius: 10px; background: var(--panel-2); color: var(--fg); border: 0; padding: 0 10px; font: inherit; font-size: 15px; }
 .row input[type="range"] { width: 50%; accent-color: var(--accent); }
-.sound-test { flex-wrap: wrap; justify-content: flex-start; gap: 8px; padding: 6px 0; }
+.sound-test { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0 0 4px; }
+.field-lbl { font-size: 14px; font-weight: 600; color: var(--muted); margin: 6px 0 6px; }
 
 .switch { appearance: none; -webkit-appearance: none; width: 52px; height: 32px; border-radius: 16px; background: var(--panel-2); position: relative; flex: none; cursor: pointer; transition: background .2s; margin: 0; }
 .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; transition: transform .2s; }
@@ -324,7 +339,9 @@ body[data-phase="done"] #clock { font-size: min(26cqw, 40cqh); }
 }
 .toast.on { transform: translate(-50%, 0); }
 
-@container (max-height: 420px) {
-  .btn-start { min-height: 50px; }
-  #stage { gap: 4px; }
+/* Невысокие экраны (iPhone SE и т. п.) */
+@container (max-height: 380px) {
+  .btn-start, .btn-wide, .btn-big { min-height: 52px; }
+  .plan-btns button { height: 46px; }
+  #stage { gap: 6px; }
 }

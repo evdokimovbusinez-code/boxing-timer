@@ -1,5 +1,5 @@
 /* Офлайн-кэш: таймер работает в зале без интернета. */
-const CACHE = 'boxing-timer-v3';
+const CACHE = 'boxing-timer-v4';
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'parse.js', 'detect.js', 'voice-phrases.js', 'stomp-worklet.js',
   'manifest.webmanifest', 'media/keepawake.mp4', 'voices/index.json',

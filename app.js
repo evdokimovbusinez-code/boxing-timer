@@ -339,13 +339,13 @@
       if (this.needsMotion()) jobs.push(this.startMotion()); else this.stopMotion();
       if (this.needsMic() && !this.paused && !this.suspended) jobs.push(this.startMic()); else this.stopMic();
       var self = this;
-      return Promise.all(jobs).then(function () { UI.renderChips(); return self; });
+      return Promise.all(jobs).then(function () { UI.renderStatus(); return self; });
     },
 
     /* --- «Громко в раунде»: микрофон на время тренировки выключается, iPhone возвращает полную громкость --- */
     suspend: function () {
       if (this.suspended || !this.needsMic()) return;
-      this.suspended = true; this.stopMic(); UI.renderChips();
+      this.suspended = true; this.stopMic(); UI.renderStatus();
     },
     resume: function () {
       if (!this.suspended) return;
@@ -356,9 +356,9 @@
         // Если iPhone каждый раз спрашивает разрешение — выключаем этот режим, чтобы не мешать тренировке.
         if (now() - t0 > 1800 && S.loudRounds) {
           S.loudRounds = false; save(); UI.syncSettings();
-          UI.toast('Выключил «Громче в раунде»: iPhone каждый раз спрашивал микрофон');
+          UI.toast('iPhone каждый раз спрашивал микрофон — теперь он не выключается на тренировку');
         }
-        UI.renderChips();
+        UI.renderStatus();
       });
     },
 
@@ -418,7 +418,7 @@
           clearInterval(self.timer);
           self.timer = setInterval(function () { self.pollMic(); }, 12);
         }
-        stream.getAudioTracks()[0].addEventListener('ended', function () { self.stopMic(); UI.renderChips(); });
+        stream.getAudioTracks()[0].addEventListener('ended', function () { self.stopMic(); UI.renderStatus(); });
       }).catch(function () {
         UI.toast('Нет доступа к микрофону — разреши в Настройках iPhone или выбери «Датчик»');
       }).then(function () { self.starting = null; });
@@ -846,13 +846,13 @@
       };
       r.onend = function () { if (self.cmdOn) setTimeout(function () { try { r.start(); } catch (e) {} }, 250); };
       try { r.start(); } catch (e) { this.cmdOn = false; }
-      UI.renderChips();
+      UI.renderStatus();
     },
     stopCommands: function (temporary) {
       if (!this.cmdOn) return;
       this.cmdOn = false;
       try { this.rec && this.rec.abort(); } catch (e) {}
-      if (!temporary) UI.renderChips();
+      if (!temporary) UI.renderStatus();
     }
   };
 
@@ -890,6 +890,14 @@
       if (!this.micWanted() || !delay) apply(); else this.micTimer = setTimeout(apply, delay);
     },
 
+    // Пауза топотом во время тренировки: нет (микрофон выключен — громче) / только в отдыхе / всегда.
+    stompDuring: function () { return S.stompInRound ? 'all' : S.loudRounds ? 'none' : 'rest'; },
+    stompAllowed: function () {
+      var T = Timer, d = this.stompDuring();
+      if (!T.running() || T.paused) return true;
+      return d === 'all' || (d === 'rest' && T.phase !== 'round');
+    },
+
     onStomp: function () {
       UI.wake();
       if (!$('settings').hidden) { UI.onCalibStomp(); return; }
@@ -905,7 +913,7 @@
         return;
       }
       if (T.paused) { UI.flashStomp(); T.resume(); return; }
-      if (T.phase === 'round' && !S.stompInRound) return;
+      if (!this.stompAllowed()) return;
       UI.flashStomp(); T.pause();
     },
 
@@ -952,14 +960,13 @@
     render: function (force) {
       var T = Timer, b = document.body;
       var rem = T.remaining(), sec = Math.ceil(rem / 1000);
-      var shown = T.phase === 'idle' ? S.roundSec : T.phase === 'done' ? S.rounds * S.roundSec : sec;
       var warn = (T.phase === 'round' && S.warnSec > 0 && sec <= S.warnSec) ||
                  ((T.phase === 'rest' || T.phase === 'prep') && sec <= 10 && T.dur > 13000) ||
                  ((T.phase === 'rest' || T.phase === 'prep') && sec <= 3);
       var w = warn && !T.paused ? '1' : '0';
       if (b.dataset.warn !== w) b.dataset.warn = w;
 
-      var txt = fmt(shown);
+      var txt = fmt(T.running() ? sec : S.roundSec);
       if (txt !== this.lastClock) {
         this.lastClock = txt;
         var clock = $('clock');
@@ -967,50 +974,48 @@
         clock.classList.toggle('long', txt.length > 4);
       }
 
-      var key = [T.phase, T.round, T.paused, T.epoch, S.rounds, S.roundSec, S.restSec, S.stompMode, S.stompPattern, S.prepSec].join('|');
+      var key = [T.phase, T.round, T.paused, T.epoch, S.rounds, S.roundSec, S.restSec, S.prepSec, S.stompMode, S.stompPattern].join('|');
       if (!force && key === this.lastKey) return;
       this.lastKey = key;
 
       b.dataset.phase = T.phase;
       b.dataset.paused = T.paused ? '1' : '0';
-      b.classList.toggle('running', T.running() && !T.paused);
       this.syncBar();
 
-      var labels = { idle: 'ГОТОВ', prep: 'ПРИГОТОВИТЬСЯ', round: 'БОКС', rest: 'ОТДЫХ', done: 'ФИНИШ' };
-      $('phaseLabel').textContent = labels[T.phase];
-      var rl = $('roundLabel');
-      if (T.phase === 'idle') rl.innerHTML = '<b>' + S.rounds + '</b> × ' + fmt(S.roundSec) + ' <span>/ ' + fmt(S.restSec) + '</span>';
-      else if (T.phase === 'done') rl.innerHTML = 'РАУНДОВ: <b>' + S.rounds + '</b>';
-      else rl.innerHTML = 'РАУНД <b>' + Math.max(1, T.round) + '</b><span>/' + S.rounds + '</span>';
+      // Сверху слева — что сейчас, справа — какой раунд (в отдыхе — какой следующий).
+      var labels = { idle: '', prep: 'ГОТОВЬСЯ', round: 'БОКС', rest: 'ОТДЫХ', done: '' };
+      $('phaseLabel').textContent = T.paused ? 'ПАУЗА' : labels[T.phase];
+      var last = S.rounds > 1, rl = '';
+      if (T.phase === 'prep') rl = 'РАУНД <b>1</b><span>/' + S.rounds + '</span>';
+      else if (T.phase === 'round') rl = last && T.isLast() ? 'ПОСЛЕДНИЙ РАУНД' : 'РАУНД <b>' + T.round + '</b><span>/' + S.rounds + '</span>';
+      else if (T.phase === 'rest') rl = '<small>дальше</small>' + (last && T.round + 1 === S.rounds ? 'ПОСЛЕДНИЙ' : 'РАУНД <b>' + (T.round + 1) + '</b><span>/' + S.rounds + '</span>');
+      $('roundLabel').innerHTML = rl;
 
-      var nl = '';
-      if (T.phase === 'prep') nl = 'дальше · раунд 1';
-      else if (T.phase === 'round') nl = T.isLast() ? 'последний раунд' : 'дальше · отдых ' + fmt(S.restSec);
-      else if (T.phase === 'rest') nl = (T.round + 1 === S.rounds ? 'дальше · последний раунд' : 'дальше · раунд ' + (T.round + 1));
-      else if (T.phase === 'done') nl = 'отработано бокса';
-      $('nextLabel').textContent = nl;
+      ['rounds', 'roundSec', 'restSec'].forEach(function (k) { $('plan-' + k).textContent = k === 'rounds' ? S.rounds : k === 'restSec' && !S.restSec ? 'нет' : fmt(S[k]); });
+      $('summaryText').textContent = S.rounds + ' ' + P.plural(S.rounds, ['раунд', 'раунда', 'раундов']) + ' по ' + fmt(S.roundSec) +
+        ' · ' + Math.round(S.rounds * S.roundSec / 60) + ' мин бокса';
+      $('startText').textContent = T.phase === 'done' ? 'Ещё раз' : 'Старт';
 
-      var html = '';
-      if (S.rounds <= 30) for (var i = 1; i <= S.rounds; i++) {
-        var c = (i < T.round || (i === T.round && (T.phase === 'rest' || T.phase === 'done'))) ? 'done' : (i === T.round && T.phase === 'round' ? 'now' : '');
-        html += '<i class="' + c + '"></i>';
+      $('skipText').textContent = this.skipTarget();
+      this.resetConfirm(false);
+      this.renderStatus();
+    },
+    // Куда ведёт «пропустить» — пишем прямо на кнопке.
+    skipTarget: function () {
+      var T = Timer, nr = T.phase === 'prep' ? 1 : T.round + 1;
+      if (T.phase === 'round') {
+        if (T.isLast()) return 'К финишу';
+        if (S.restSec > 0) return 'К отдыху';
       }
-      $('pips').innerHTML = html;
-
-      var hint = '';
-      if (T.phase === 'idle') {
-        var total = S.prepSec + S.rounds * S.roundSec + Math.max(0, S.rounds - 1) * S.restSec;
-        hint = 'Тренировка ≈ ' + Math.round(total / 60) + ' мин';
-      }
-      if (S.stompMode !== 'off') hint += (hint ? ' · ' : '') + (S.stompPattern === 'double' ? 'топни дважды' : 'топни') + ' — старт';
-      $('idleHint').textContent = hint;
-      $('btnStart').lastChild.textContent = T.phase === 'done' ? 'Ещё раз' : 'Старт';
-      $('dimText').textContent = S.rounds + ' × ' + fmt(S.roundSec);
-      $('dimHint').textContent = S.stompMode !== 'off' ? (S.stompPattern === 'double' ? 'топни дважды — старт' : 'топни — старт') : 'коснись экрана';
-
-      $('pauseLayer').hidden = !T.paused || !$('settings').hidden;
-      $('pauseHint').textContent = S.stompMode !== 'off' ? (S.stompPattern === 'double' ? 'Двойной топ' : 'Топ') + ' — продолжить' : '';
-      this.renderChips();
+      return nr === S.rounds && S.rounds > 1 ? 'К последнему раунду' : 'К раунду ' + nr;
+    },
+    // Сброс на паузе — со второго касания: случайно задел — тренировка не пропала.
+    resetTimer: null,
+    resetConfirm: function (on) {
+      clearTimeout(this.resetTimer);
+      $('btnReset').classList.toggle('confirm', on);
+      $('resetText').textContent = on ? 'Точно сбросить?' : 'Сброс';
+      if (on) this.resetTimer = setTimeout(function () { UI.resetConfirm(false); }, 3000);
     },
 
     // Полоса прогресса: одна CSS-анимация на всю фазу (компоновщик, без JS каждый кадр).
@@ -1026,13 +1031,27 @@
       }
     },
 
-    renderChips: function () {
-      var c = $('chipStomp');
-      c.classList.toggle('listening', Stomp.listening());
-      var names = { off: 'выкл', mic: 'микр', motion: 'датчик', both: 'оба' };
-      $('chipStompText').textContent = S.stompMode === 'off' ? 'выкл' : (S.stompPattern === 'double' ? '×2 ' : '') + names[S.stompMode];
+    // Слышит ли таймер топот прямо сейчас — честно, по факту, а не по настройке.
+    renderStatus: function () {
+      var T = Timer, live = Stomp.listening() && S.stompMode !== 'off';
+      var how = S.stompPattern === 'double' ? 'топни дважды' : 'топни';
+      $('liveStomp').hidden = !(live && T.running() && App.stompAllowed());
+      $('liveCmd').hidden = !(Listen.cmdOn && T.running());
       $('chipVoice').hidden = !Listen.supported;
-      $('chipVoice').classList.toggle('listening', Listen.cmdOn);
+
+      var parts = [];
+      if (T.phase === 'idle') {
+        var total = S.prepSec + S.rounds * S.roundSec + Math.max(0, S.rounds - 1) * S.restSec;
+        parts.push('тренировка ≈ ' + Math.max(1, Math.round(total / 60)) + ' мин');
+      }
+      if (S.stompMode !== 'off') parts.push(live ? how + ' — ' + (T.phase === 'done' ? 'ещё раз' : 'старт') : 'топот не слушается — проверь разрешения');
+      $('idleHint').textContent = parts.join(' · ');
+      $('idleDot').hidden = S.stompMode === 'off';
+      $('idleDot').classList.toggle('on', live);
+
+      $('pauseHint').textContent = (live ? how + ' или коснись экрана' : 'Коснись экрана') + ' — продолжить';
+      $('dimText').textContent = S.rounds + ' × ' + fmt(S.roundSec);
+      $('dimHint').textContent = live ? how + ' — старт' : 'коснись экрана';
     },
 
     flashStomp: function () {
@@ -1043,7 +1062,7 @@
       UI.wake();
       if (!$('settings').hidden) { $('meterCount').textContent = '1-й топ… давай второй'; return; }
       if (!$('gate').hidden || !$('voiceLayer').hidden || !$('calLayer').hidden) return;
-      if (Timer.phase === 'round' && !S.stompInRound) return;
+      if (!App.stompAllowed()) return;
       var f = $('stompFlash');
       f.classList.remove('on', 'half'); void f.offsetWidth; f.classList.add('half');
     },
@@ -1072,7 +1091,6 @@
       if (Timer.running() && !Timer.paused) Timer.pause();
       this.syncSettings();
       $('settings').hidden = false;
-      $('pauseLayer').hidden = true;
       this.calibHits = 0;
       $('meterCount').textContent = 'топни — проверим';
       Stomp.setMeter(true);
@@ -1091,6 +1109,22 @@
       { k: 'prepSec', lbl: 'Подготовка', step: 5, min: 0, max: 60, f: fmt },
       { k: 'warnSec', lbl: 'Сигнал до конца', step: 5, min: 0, max: 60, f: function (v) { return v ? v + ' с' : 'нет'; } }
     ],
+    // Кнопка −/+: шаг по касанию, при удержании — быстро подряд.
+    bindStep: function (btn, d, dir) {
+      var self = this, rep = null, startT = null;
+      var stepOnce = function () {
+        var v = S[d.k] + d.step * dir;
+        if (d.k === 'roundSec' && S.roundSec <= 60 && dir < 0) v = S.roundSec - 5;
+        if (d.k === 'roundSec' && S.roundSec < 60 && dir > 0) v = S.roundSec + 5;
+        S[d.k] = Math.max(d.min, Math.min(d.max, v)); save(); self.syncSettings(); self.render(true);
+      };
+      var stop = function () { clearTimeout(startT); clearInterval(rep); };
+      btn.addEventListener('pointerdown', function (e) {
+        e.preventDefault(); stepOnce();
+        startT = setTimeout(function () { rep = setInterval(stepOnce, 90); }, 420);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { btn.addEventListener(ev, stop); });
+    },
     buildSettings: function () {
       var self = this;
       PRESETS.forEach(function (p, i) {
@@ -1104,25 +1138,16 @@
         var row = document.createElement('div');
         row.className = 'stepper';
         row.innerHTML = '<span class="lbl">' + d.lbl + '</span><button type="button" data-d="-1" aria-label="меньше">−</button><span class="val" id="val-' + d.k + '"></span><button type="button" data-d="1" aria-label="больше">+</button>';
-        row.querySelectorAll('button').forEach(function (btn) {
-          var rep = null, startT = null;
-          var stepOnce = function () {
-            var v = S[d.k] + d.step * +btn.dataset.d;
-            if (d.k === 'roundSec' && S.roundSec <= 60 && btn.dataset.d === '-1') v = S.roundSec - 5;
-            if (d.k === 'roundSec' && S.roundSec < 60 && btn.dataset.d === '1') v = S.roundSec + 5;
-            S[d.k] = Math.max(d.min, Math.min(d.max, v)); save(); self.syncSettings(); self.render(true);
-          };
-          var stop = function () { clearTimeout(startT); clearInterval(rep); };
-          btn.addEventListener('pointerdown', function (e) {
-            e.preventDefault(); stepOnce();
-            startT = setTimeout(function () { rep = setInterval(stepOnce, 90); }, 420);
-          });
-          ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { btn.addEventListener(ev, stop); });
-        });
+        row.querySelectorAll('button').forEach(function (btn) { self.bindStep(btn, d, +btn.dataset.d); });
         $('steppers').appendChild(row);
       });
+      // Те же шаги — на главном экране, в плане тренировки.
+      document.querySelectorAll('.plan-btns button').forEach(function (btn) {
+        var d = self.STEPS.filter(function (x) { return x.k === btn.dataset.k; })[0];
+        self.bindStep(btn, d, +btn.dataset.d);
+      });
 
-      $('optVoice').onchange = function () { S.voice = this.checked; save(); if (S.voice) Voice.speak(['round_1']); };
+      $('optVoice').onchange = function () { S.voice = this.checked; save(); self.syncSettings(); if (S.voice) Voice.speak(['round_1']); };
       $('optVoiceName').onchange = function () {
         var v = this.value;
         if (v.indexOf('sys:') === 0) { S.voiceId = 'system'; S.sysVoiceURI = v.slice(4); Voice.loadSystem(); Clips.load('system'); Voice.say('Раунд три. Бокс!'); }
@@ -1130,7 +1155,6 @@
         save();
       };
       $('optVolume').oninput = function () { S.volume = +this.value; Sound.setVolume(S.volume); save(); };
-      $('optLoud').onchange = function () { S.loudRounds = this.checked; save(); };
       $('optCount').onchange = function () { S.countVoice = this.checked; save(); };
       $('optHalf').onchange = function () { S.halfVoice = this.checked; save(); };
       $('optFlip').onchange = function () { S.flip = this.checked; save(); self.applyLook(); };
@@ -1162,7 +1186,12 @@
       $('stompPattern').querySelectorAll('button').forEach(function (b) {
         b.onclick = function () { S.stompPattern = b.dataset.v; save(); self.syncSettings(); self.render(true); };
       });
-      $('optStompRound').onchange = function () { S.stompInRound = this.checked; save(); self.syncSettings(); };
+      $('stompDuring').querySelectorAll('button').forEach(function (b) {
+        b.onclick = function () {
+          S.stompInRound = b.dataset.v === 'all'; S.loudRounds = b.dataset.v === 'none'; save();
+          App.syncMic(0); self.syncSettings(); self.renderStatus();
+        };
+      });
       $('optSens').oninput = function () { S.sens = +this.value; save(); };
       $('optCommands').onchange = function () {
         S.commands = this.checked; save();
@@ -1181,24 +1210,28 @@
       });
       $('optVoice').checked = S.voice;
       $('optVolume').value = S.volume;
-      $('optLoud').checked = S.loudRounds;
-      $('optLoud').disabled = !Stomp.needsMic() || S.stompInRound;
       $('optCount').checked = S.countVoice;
       $('optHalf').checked = S.halfVoice;
       $('optFlip').checked = S.flip;
       $('optEco').checked = S.eco;
       $('optDim').checked = S.dimIdle;
-      $('optStompRound').checked = S.stompInRound;
       $('optSens').value = S.sens;
       $('optCommands').checked = S.commands;
-      $('optCommands').disabled = !Listen.supported;
-      $('commandsHint').textContent = !Listen.supported
-        ? 'В этом браузере распознавание речи недоступно.'
-        : 'На iPhone микрофон один: с командами топот работает через датчик. Команды не реагируют, пока говорит сам таймер.';
+      $('commandsSection').hidden = !Listen.supported;
+      $('voiceOpts').hidden = !S.voice;
+      $('stompOpts').hidden = S.stompMode === 'off';
+      var during = App.stompDuring();
+      $('stompDuring').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === during); });
+      $('stompDuringHint').textContent = {
+        none: Stomp.needsMic() ? 'Микрофон выключается до конца тренировки — iPhone играет громче. Топот работает до старта и на паузе.'
+          : 'Во время тренировки топот не ставит паузу.',
+        rest: 'В раунде топот не мешает, в отдыхе двойной топ — пауза.' + (Stomp.needsMic() ? ' Микрофон включён — iPhone чуть тише.' : ''),
+        all: 'Топ ставит паузу и в раунде.' + (Stomp.needsMic() ? ' Микрофон включён — iPhone чуть тише.' : '')
+      }[during];
       $('stompMode').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.stompMode); });
       $('stompPattern').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.stompPattern); });
       var hints = {
-        off: 'Только кнопки и голос.',
+        off: 'Старт и пауза — касанием экрана.',
         mic: 'Ловит глухой удар ногой по полу. Телефон можно ставить где угодно рядом.',
         motion: 'Телефон лежит на полу или помосте — ловит вибрацию от топота. Звуки зала не мешают.',
         both: 'Срабатывает, только когда удар и слышно, и чувствуется. Меньше ложных стартов, телефон на полу.'
@@ -1284,17 +1317,16 @@
   });
   $('stage').addEventListener('click', function (e) {
     UI.wake();
-    if (e.target.closest('button')) return;
+    if (e.target.closest('button, .pause-controls')) return;
     if (Timer.running()) { if (Timer.paused) Timer.resume(); else Timer.pause(); }
   });
   $('dim').addEventListener('click', function () { UI.wake(); });
   $('btnResume').onclick = function () { Timer.resume(); };
   $('btnSkip').onclick = function () { Timer.skip(); };
-  $('btnReset').onclick = function () { Timer.reset(); };
+  $('btnReset').onclick = function () { if (this.classList.contains('confirm')) Timer.reset(); else UI.resetConfirm(true); };
+  $('btnEdit').onclick = function () { Timer.reset(); };
   $('btnPauseSettings').onclick = function () { UI.openSettings(); };
-  $('pauseLayer').addEventListener('click', function (e) { if (e.target === this) Timer.resume(); });
   $('chipSettings').onclick = function () { UI.openSettings(); };
-  $('chipStomp').onclick = function () { UI.openSettings(); };
   $('chipVoice').onclick = function () { Listen.once(); };
   $('btnSettingsClose').onclick = function () { UI.closeSettings(); };
   $('btnVoiceClose').onclick = function () { Listen.closeOnce(); };
@@ -1314,7 +1346,7 @@
     var away = hiddenAt ? now() - hiddenAt : 0;
     if (Sound.ctx && Sound.ctx.state !== 'running') Sound.ctx.resume().catch(function () {});
     if (App.unlocked) Wake.request();
-    if (App.unlocked && App.micWanted() && !Stomp.listening() && !Stomp.paused) Stomp.startMic().then(function () { UI.renderChips(); });
+    if (App.unlocked && App.micWanted() && !Stomp.listening() && !Stomp.paused) Stomp.startMic().then(function () { UI.renderStatus(); });
     Timer.tick(); UI.render(true); Timer.schedule();
     setTimeout(function () {
       if (App.unlocked && Sound.ctx && Sound.ctx.state !== 'running') {
