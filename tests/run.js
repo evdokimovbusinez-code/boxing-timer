@@ -61,11 +61,17 @@ const MIC = { absHi: 0.12, absLo: 0.012 };
 function runNew(samples, sens, cal) {
   const det = new D.OnsetDetector({ floor0: 0.01 });
   const dbl = new D.DoubleTap();
-  const hits = [], doubles = [];
+  const hits = [], doubles = [], pend = [];
   for (const [t, v] of samples) {
     const thr = D.threshold({ sens, cal, floor: det.floor, second: dbl.waiting(t), absHi: MIC.absHi, absLo: MIC.absLo });
-    if (det.push(v, t, thr)) { hits.push(t); if (dbl.push(t) === 'double') doubles.push(t); }
+    // как в приложении: после 'second' ждём confirmDelay и проверяем тишину
+    if (pend.length && t >= pend[0].at) { const p = pend.shift(); if (dbl.confirm(t)) doubles.push(p.t); }
+    if (det.push(v, t, thr)) {
+      hits.push(t);
+      if (dbl.push(t) === 'second') pend.push({ t, at: t + dbl.confirmDelay() + 15 });
+    }
   }
+  for (const p of pend) if (dbl.confirm(p.at)) doubles.push(p.t);
   return { hits, doubles };
 }
 // Старый алгоритм из первой версии (для сравнения).
@@ -136,6 +142,30 @@ function runOld(samples, sens) {
   const r = runNew(s, 0.55);
   check('длинный громкий звук: максимум 1 удар', r.hits.length <= 1, r.hits.length + ' ударов');
 }
+// 8б. Бочка в музыке 117 BPM (удар каждые 510 мс, как фейковый микрофон Chromium) — ни одного старта
+{
+  const beats = []; for (let t = 500; t < 20000; t += 510) beats.push({ t, peak: 0.6 });
+  const r = runNew(stream(20000, 0.01, 0.03, beats), 0.55);
+  check('ритм 117 BPM: нет ложных стартов', r.doubles.length === 0, r.hits.length + ' ударов, ' + r.doubles.length + ' стартов');
+}
+// 8в. Музыка играет, потом пауза в треке и человек делает двойной топ — ловится
+{
+  const ev = []; for (let t = 500; t < 8000; t += 510) ev.push({ t, peak: 0.6 });
+  ev.push({ t: 9500, peak: 0.5 }, { t: 9850, peak: 0.4 });
+  check('после музыки двойной топ в тишине ловится', runNew(stream(12000, 0.01, 0.03, ev), 0.55).doubles.length === 1);
+}
+// 8г. Тройной топ — не двойной
+{
+  const r = runNew(stream(4000, 0.002, 0.006, [{ t: 1000, peak: 0.2 }, { t: 1350, peak: 0.2 }, { t: 1700, peak: 0.2 }]), 0.55);
+  check('тройной топ — не старт', r.doubles.length === 0, JSON.stringify(r.doubles));
+}
+// 8д. Одиночный режим: ритм не срабатывает, отдельный удар — да
+{
+  const st = new D.SingleTap(900, 700); let fired = 0;
+  for (let t = 0; t < 5000; t += 510) { st.push(t); if (st.confirm(t + 505)) fired++; }
+  const st2 = new D.SingleTap(900, 700); st2.push(10000); const ok2 = st2.confirm(10715);
+  check('одиночный режим: ритм игнорируется, отдельный удар ловится', fired === 0 && ok2, 'ритм ' + fired + ', одиночный ' + ok2);
+}
 // 9. Калибровка: 4 топа → уровень ≈ медиана; затем тихий двойной (на 40% слабее) ловится, шаги — нет
 {
   const pc = new D.PeakCollector();
@@ -156,6 +186,68 @@ function runOld(samples, sens) {
   const det = new D.OnsetDetector({ floor0: 0.01 });
   for (const [t, v] of stream(5000, 0.002, 0.006, [])) { const prev = det.slow; det.push(v, t, 1); pc.push(v, t, det.floor, prev); }
   check('калибровка без топота → нет уровня', pc.level() === null);
+}
+
+/* ---------- Локальная модель «топот / не топот» ---------- */
+{
+  const SR = 48000, FFT = 2048;
+  // Синтетический спектр в дБ: профиль энергии по частоте + разброс.
+  function spectrum(profile, jitter) {
+    const db = new Float32Array(FFT / 2);
+    for (let i = 0; i < db.length; i++) {
+      const f = i * SR / FFT;
+      db[i] = profile(f) + (rnd() - 0.5) * jitter;
+    }
+    return db;
+  }
+  const kinds = {
+    // топот: глухой удар 30–200 Гц, быстро затухает
+    stomp: () => [spectrum(f => (f < 200 ? -20 : -20 - 25 * Math.log2(f / 200)) + (rnd() - 0.5) * 6, 8), -18 - 6 * rnd()],
+    // шаг: тише, больше 200–600 Гц и щелчок подошвы 2–5 кГц
+    step: () => [spectrum(f => (f < 120 ? -45 : f < 700 ? -38 : f > 2000 && f < 5000 ? -40 : -55) + (rnd() - 0.5) * 6, 8), -10 - 6 * rnd()],
+    // удар по лапам: широкий щелчок 300–4000 Гц
+    pad: () => [spectrum(f => (f < 250 ? -42 : f < 4000 ? -25 : -40) + (rnd() - 0.5) * 6, 8), -25 - 6 * rnd()],
+    // прыжок: низ похож на топот, но с «двойным» приземлением и гулом (медленное затухание)
+    jump: () => [spectrum(f => (f < 150 ? -24 : f < 900 ? -30 : -45) + (rnd() - 0.5) * 6, 8), -5 - 4 * rnd()]
+  };
+  const sample = (k) => { const [db, decay] = kinds[k](); return D.features(db, SR, FFT, decay); };
+  const X = [], y = [];
+  for (let i = 0; i < 5; i++) { X.push(sample('stomp')); y.push(1); }
+  for (const k of ['step', 'pad', 'jump']) for (let i = 0; i < 4; i++) { X.push(sample(k)); y.push(0); }
+  const model = D.trainModel(X, y);
+  check('модель обучилась на 5 топах и 12 «не топах»', !!model && model.acc >= 0.9, model && ('точность на обучении ' + Math.round(model.acc * 100) + '%'));
+  let ok = 0, total = 0;
+  const conf = {};
+  for (const k of Object.keys(kinds)) {
+    let right = 0;
+    for (let i = 0; i < 50; i++) {
+      const p = D.predict(model, sample(k));
+      if ((p >= 0.5) === (k === 'stomp')) right++;
+    }
+    conf[k] = right; ok += right; total += 50;
+  }
+  check('модель на новых примерах ≥ 90% верно', ok / total >= 0.9, Math.round(ok / total * 100) + '% ' + JSON.stringify(conf));
+  check('мало примеров → модели нет', D.trainModel(X.slice(0, 4), y.slice(0, 4)) === null);
+  // Фильтр «есть низ»: топот проходит, писк 2 кГц и удар по лапам — нет
+  const beep = spectrum(f => (Math.abs(f - 2000) < 60 ? -10 : -70), 4);
+  let stompPass = 0; for (let i = 0; i < 30; i++) if (D.lowHigh(kinds.stomp()[0], SR, FFT) >= D.LOW_MIN) stompPass++;
+  let padPass = 0; for (let i = 0; i < 30; i++) if (D.lowHigh(kinds.pad()[0], SR, FFT) >= D.LOW_MIN) padPass++;
+  check('фильтр низа: топот проходит', stompPass === 30, stompPass + '/30');
+  check('фильтр низа: писк отсекается', D.lowHigh(beep, SR, FFT) < D.LOW_MIN, D.lowHigh(beep, SR, FFT).toFixed(4));
+  check('фильтр низа: удар по лапам отсекается', padPass === 0, padPass + '/30 прошло');
+  const json = JSON.stringify(model);
+  check('модель маленькая (< 1 КБ)', json.length < 1024, json.length + ' байт');
+}
+
+/* ---------- Фразы нейроголоса ---------- */
+{
+  const PH = require('../voice-phrases.js');
+  const l = PH.list(), ids = new Set(l.map(x => x.id));
+  check('фразы: id уникальны', ids.size === l.length, l.length + ' фраз');
+  const need = ['prep', 'start', 'box', 'round_1', 'round_30', 'last_round', 'stop_rest', 'left_1', 'left_2', 'left_30', 'warn_10', 'ready_1', 'ready_last', 'half', 'cnt_5', 'pause', 'resume', 'finish'];
+  check('фразы: все нужные таймеру есть', need.every(i => ids.has(i)), need.filter(i => !ids.has(i)).join(','));
+  const t = Object.fromEntries(l.map(x => [x.id, x.text]));
+  check('фразы: склонения', t.left_2 === 'Осталось два раунда.' && t.left_5 === 'Осталось пять раундов.' && t.left_21 === 'Остался двадцать один раунд.' && t.warn_10 === 'Десять секунд!', [t.left_2, t.left_5, t.left_21, t.warn_10].join(' | '));
 }
 
 console.log('\n' + pass + ' прошло, ' + fail + ' упало');

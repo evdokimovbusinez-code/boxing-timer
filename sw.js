@@ -1,7 +1,8 @@
 /* Офлайн-кэш: таймер работает в зале без интернета. */
-const CACHE = 'boxing-timer-v2';
+const CACHE = 'boxing-timer-v3';
 const FILES = [
-  './', 'index.html', 'style.css', 'app.js', 'parse.js', 'detect.js', 'manifest.webmanifest',
+  './', 'index.html', 'style.css', 'app.js', 'parse.js', 'detect.js', 'voice-phrases.js', 'stomp-worklet.js',
+  'manifest.webmanifest', 'media/keepawake.mp4', 'voices/index.json',
   'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'
 ];
 

@@ -21,11 +21,13 @@
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="8.5" y="2.5" width="7" height="12" rx="3.5" fill="currentColor"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5V22M8.5 22h7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
   <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h12M20 18h0" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="16" cy="6" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></symbol>
-  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/></symbol>
   <symbol id="i-skip" viewBox="0 0 24 24"><path d="M5 5v14l10-7zM17 5h2.5v14H17z" fill="currentColor"/></symbol>
   <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v4.5H9" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
 </svg>
+
+<!-- Всё приложение внутри #root: в портрете он поворачивается, поэтому экран всегда горизонтальный -->
+<div id="root">
 
 <main id="stage">
   <header class="top">
@@ -55,6 +57,12 @@
   <div id="stompFlash" class="stomp-flash"><svg><use href="#i-foot"/></svg></div>
 </main>
 
+<!-- Ожидание: чёрный экран, чтобы не тратить батарею (OLED не светит чёрным) -->
+<div id="dim" class="dim" hidden>
+  <div class="dim-clock" id="dimText">10 × 2:00</div>
+  <div class="dim-hint" id="dimHint">топни дважды — старт</div>
+</div>
+
 <!-- Пауза -->
 <div id="pauseLayer" class="layer pause-layer" hidden>
   <div class="pause-title">ПАУЗА</div>
@@ -74,7 +82,7 @@
     <h1>Боксёрский таймер</h1>
     <p id="gateText">Нажми один раз — iPhone разрешит звук, голос и датчики для топота.</p>
     <button id="btnGate" class="btn btn-start" type="button">Включить</button>
-    <p class="hint small">Поверни телефон горизонтально. Лучше всего — «На экран Домой».</p>
+    <p class="hint small">Включи блокировку поворота в Пункте управления — таймер сам останется горизонтальным.</p>
   </div>
 </div>
 
@@ -86,6 +94,20 @@
     <p class="voice-text" id="voiceText"></p>
     <p class="voice-result" id="voiceResult"></p>
     <button id="btnVoiceClose" class="btn" type="button">Готово</button>
+  </div>
+</div>
+
+<!-- Настройка топота: шаг 1 — топаем, шаг 2 — ходим и прыгаем -->
+<div id="calLayer" class="layer cal-layer" hidden>
+  <div class="cal-card">
+    <div class="cal-step" id="calStep">Шаг 1 из 2</div>
+    <div class="cal-title" id="calTitle">Топни 5 раз</div>
+    <div class="cal-sub" id="calSub">по одному, с паузой около секунды — как будешь запускать таймер</div>
+    <div class="cal-dots" id="calDots"></div>
+    <div class="cal-actions">
+      <button id="btnCalNext" class="btn" type="button">Дальше</button>
+      <button id="btnCalCancel" class="btn" type="button">Отмена</button>
+    </div>
   </div>
 </div>
 
@@ -109,10 +131,12 @@
     <section>
       <h3>Голос и звук</h3>
       <label class="row"><span>Голосовой помощник</span><input type="checkbox" id="optVoice" class="switch"></label>
+      <label class="row"><span>Голос</span><select id="optVoiceName"></select></label>
+      <p class="hint small left" id="voiceStatus"></p>
+      <label class="row"><span>Громкость</span><input type="range" id="optVolume" min="0.4" max="2" step="0.05"></label>
+      <label class="row"><span>Громче в раунде <em>микрофон на время раунда выключается</em></span><input type="checkbox" id="optLoud" class="switch"></label>
       <label class="row"><span>Считать вслух 5…1 в конце раунда</span><input type="checkbox" id="optCount" class="switch"></label>
       <label class="row"><span>Сигнал «Половина» в середине раунда</span><input type="checkbox" id="optHalf" class="switch"></label>
-      <label class="row"><span>Голос</span><select id="optVoiceName"></select></label>
-      <label class="row"><span>Громкость звуков</span><input type="range" id="optVolume" min="0.2" max="1.5" step="0.05"></label>
       <div class="row sound-test">
         <button class="btn btn-small" data-sound="bellStart" type="button">Старт раунда</button>
         <button class="btn btn-small" data-sound="clapper" type="button">10 секунд</button>
@@ -127,19 +151,19 @@
         <button data-v="off" type="button">Выкл</button>
         <button data-v="mic" type="button">Микрофон</button>
         <button data-v="motion" type="button">Датчик</button>
-        <button data-v="both" type="button">Оба (строже)</button>
+        <button data-v="both" type="button">Оба</button>
       </div>
-      <p class="hint small" id="stompModeHint"></p>
+      <p class="hint small left" id="stompModeHint"></p>
       <div class="seg" id="stompPattern">
         <button data-v="single" type="button">Один топ</button>
         <button data-v="double" type="button">Двойной топ</button>
       </div>
-      <label class="row"><span>Слушать топот во время раунда (пауза)</span><input type="checkbox" id="optStompRound" class="switch"></label>
       <div class="cal-row" id="calRow">
-        <div class="cal-info"><b>Настроить под свой топот</b><span id="calText"></span></div>
-        <button id="btnCal" class="btn btn-small btn-accent" type="button">Настроить</button>
+        <div class="cal-info"><b>Обучить под свой топот</b><span id="calText"></span></div>
+        <button id="btnCal" class="btn btn-small btn-accent" type="button">Обучить</button>
         <button id="btnCalReset" class="btn btn-small" type="button" hidden>Сброс</button>
       </div>
+      <label class="row"><span>Слушать топот во время раунда (пауза)</span><input type="checkbox" id="optStompRound" class="switch"></label>
       <label class="row"><span>Чувствительность</span><input type="range" id="optSens" min="0" max="1" step="0.01"></label>
       <div class="meter-wrap">
         <div class="meter"><i id="meterFill"></i><b id="meterThr"></b></div>
@@ -148,17 +172,26 @@
     </section>
 
     <section>
+      <h3>Экран и батарея</h3>
+      <label class="row"><span>Перевернуть экран на 180°</span><input type="checkbox" id="optFlip" class="switch"></label>
+      <label class="row"><span>Экономный экран <em>чёрный фон, цветные цифры</em></span><input type="checkbox" id="optEco" class="switch"></label>
+      <label class="row"><span>Гасить картинку в ожидании через 2 мин <em>экран не выключается, топот работает</em></span><input type="checkbox" id="optDim" class="switch"></label>
+    </section>
+
+    <section>
       <h3>Голосовые команды <span class="tag">бета</span></h3>
       <label class="row"><span>Слушать «старт», «пауза», «дальше», «сброс»</span><input type="checkbox" id="optCommands" class="switch"></label>
-      <p class="hint small" id="commandsHint"></p>
+      <p class="hint small left" id="commandsHint"></p>
     </section>
   </div>
 </div>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</div>
 
 <script src="parse.js"></script>
 <script src="detect.js"></script>
+<script src="voice-phrases.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
