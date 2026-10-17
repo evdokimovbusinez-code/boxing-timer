@@ -56,7 +56,7 @@ struct Provider: TimelineProvider {
 }
 
 let accent = Color(red: 1, green: 0.2, blue: 0.278)
-let background = Color(red: 0.043, green: 0.043, blue: 0.051)
+let darkBackground = Color(red: 0.043, green: 0.043, blue: 0.051)
 
 struct Summary: View {
     let c: Calc, t: [String: String]
@@ -122,7 +122,7 @@ struct WidgetView: View {
                     Text("Открой приложение и проведи тренировку").font(.system(size: 12, design: .rounded)).foregroundColor(.white.opacity(0.6))
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
-        }.widgetBackground(background)
+        }.widgetBackground(darkBackground)
     }
 }
 
