@@ -979,7 +979,7 @@
   /* ================= Колесо настройки: листаем пальцем, как будильник в iPhone ================= */
   // d — {k, f}: ключ настройки и формат. Значения — P.choices(k). onChange вызывается на каждом шаге.
   function makeWheel(el, d, onChange) {
-    var W = { pos: 0, target: 0, list: [], items: [], drag: null, anim: 0, ticked: null };
+    var W = { pos: 0, target: 0, list: [], items: [], drag: null, anim: 0, ticked: null, quiet: false };
     for (var j = 0; j < 7; j++) { var it = document.createElement('span'); it.className = 'wheel-item'; el.appendChild(it); W.items.push(it); }
     var row = function () { return el.offsetHeight * 0.36 || 40; };
     // Ось «вверх-вниз» экрана в координатах окна: в портрете #root повёрнут, свайп тоже надо повернуть.
@@ -1007,7 +1007,7 @@
       var v = W.list[clampIdx(W.pos)];
       if (S[d.k] !== v) {
         S[d.k] = v;
-        if (W.ticked !== v) Haptic.play('tick'); // одно значение — один тик
+        if (W.ticked !== v && !W.quiet) Haptic.play('tick'); // одно значение — один тик
         W.ticked = v;
         onChange();
       }
@@ -1027,14 +1027,22 @@
         W.pos = from + (target - from) * e;
         W.draw(); W.commit();
         if (p < 1) W.anim = requestAnimationFrame(step);
-        else { W.anim = 0; save(); }
+        else { W.anim = 0; W.quiet = false; save(); }
       };
       W.anim = requestAnimationFrame(step);
     };
 
     // Куда считать следующий шаг: если колесо ещё докручивается — от его цели (быстрые касания складываются).
     var base = function () { return W.anim ? W.target : Math.round(W.pos); };
+    // Прокрутить к значению (пресет): видно, как меняется, но без вибрации на каждый шаг.
+    W.go = function (v) {
+      if (W.drag) return;
+      W.list = P.choices(d.k, v);
+      W.quiet = true;
+      W.animTo(W.list.indexOf(v));
+    };
     el.addEventListener('pointerdown', function (e) {
+      W.quiet = false;
       var b0 = base();
       if (W.anim) { cancelAnimationFrame(W.anim); W.anim = 0; }
       else W.list = P.choices(d.k, S[d.k]);
@@ -1103,11 +1111,21 @@
         var clock = $('clock');
         clock.textContent = txt;
         clock.classList.toggle('long', txt.length > 4);
+        // Последние 3 секунды цифры «толкаются» в такт бипам — видно краем глаза.
+        if (T.running() && !T.paused && sec >= 1 && sec <= 3) this.animate(clock, 'beat');
       }
 
       var key = [T.phase, T.round, T.paused, T.epoch, S.rounds, S.roundSec, S.restSec, S.prepSec, S.stompMode, S.stompPattern].join('|');
       if (!force && key === this.lastKey) return;
       this.lastKey = key;
+
+      // Новая фаза (раунд, отдых) — цифры и надпись «выпрыгивают»: смена заметна с другого конца зала.
+      var stage = T.phase + T.round;
+      if (stage !== this.lastStage && T.running()) {
+        if (/^(idle|done)/.test(this.lastStage)) this.animate($('clock'), 'enter'); // из плана — цифры наезжают
+        else { this.animate($('clock'), 'pop'); this.animate($('phaseLabel'), 'pop'); }
+      }
+      this.lastStage = stage;
 
       b.dataset.phase = T.phase;
       b.dataset.paused = T.paused ? '1' : '0';
@@ -1130,6 +1148,13 @@
       $('skipText').textContent = this.skipTarget();
       this.resetConfirm(false);
       this.renderStatus();
+    },
+    lastStage: 'idle',
+    // Перезапуск короткой CSS-анимации (только transform/opacity — дёшево для батареи).
+    animate: function (el, cls) {
+      el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+      clearTimeout(el['_t' + cls]);
+      el['_t' + cls] = setTimeout(function () { el.classList.remove(cls); }, 600);
     },
     // Куда ведёт «пропустить» — пишем прямо на кнопке.
     skipTarget: function () {
@@ -1218,9 +1243,22 @@
     },
 
     /* ---- Настройки ---- */
-    openSettings: function () {
+    tab: 'workout',
+    TABS: { workout: 'Тренировка', sound: 'Звук и голос', hands: 'Управление без рук', screen: 'Экран' },
+    showTab: function (t) {
+      this.tab = t;
+      document.querySelectorAll('.sheet-nav .tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === t); });
+      document.querySelectorAll('#sheetBody > section').forEach(function (sec) { sec.hidden = sec.dataset.tab !== t; });
+      $('tabTitle').textContent = this.TABS[t];
+      $('sheetBody').scrollTop = 0;
+      this.syncWheels(); // колёса меряют высоту — только когда видны
+    },
+    openSettings: function (tab) {
       if (Timer.running() && !Timer.paused) Timer.pause();
-      $('settings').hidden = false;
+      var el = $('settings');
+      el.classList.remove('closing');
+      el.hidden = false;
+      this.showTab(tab || this.tab);
       this.syncSettings();
       this.calibHits = 0;
       $('meterCount').textContent = 'топни — проверим';
@@ -1228,9 +1266,10 @@
       if (!this.meterOn) { this.meterOn = true; this.meterLoop(); }
     },
     closeSettings: function () {
-      $('settings').hidden = true;
+      var el = $('settings'), self = this;
       Stomp.setMeter(false);
-      this.render(true);
+      el.classList.add('closing'); // уезжает вниз, потом прячется
+      setTimeout(function () { if (el.classList.contains('closing')) { el.classList.remove('closing'); el.hidden = true; } self.render(true); }, 200);
     },
 
     STEPS: [
@@ -1240,16 +1279,20 @@
       { k: 'prepSec', lbl: 'Подготовка', f: function (v) { return v ? fmt(v) : 'нет'; } },
       { k: 'warnSec', lbl: 'Сигнал за', f: function (v) { return v ? v + ' с' : 'нет'; } }
     ],
-    wheels: [],
+    wheels: [], planWheels: [],
     syncWheels: function () { this.wheels.forEach(function (w) { w.sync(); }); },
     buildSettings: function () {
       var self = this;
+      // Пресеты — на главном экране: одно касание, и колёса прокручиваются к значениям.
       PRESETS.forEach(function (p, i) {
         var b = document.createElement('button');
-        b.className = 'preset'; b.type = 'button'; b.dataset.i = i;
-        b.innerHTML = '<b>' + p.name + '</b><span>' + p.rounds + ' × ' + fmt(p.roundSec) + ' / ' + fmt(p.restSec) + '</span>';
-        b.onclick = function () { S.rounds = p.rounds; S.roundSec = p.roundSec; S.restSec = p.restSec; save(); self.syncSettings(); self.render(true); };
-        $('presets').appendChild(b);
+        b.className = 'chip preset'; b.type = 'button'; b.dataset.i = i;
+        b.textContent = p.name;
+        b.title = p.rounds + ' × ' + fmt(p.roundSec) + ' / ' + fmt(p.restSec);
+        b.onclick = function () {
+          self.planWheels.forEach(function (w) { w.go(p[w.key]); });
+        };
+        $('presetBar').appendChild(b);
       });
       // Каждое значение листается колесом; на главном экране — те же колёса для трёх главных.
       var changed = function () { self.syncPresets(); self.render(true); };
@@ -1262,16 +1305,15 @@
       });
       document.querySelectorAll('.plan .wheel').forEach(function (el) {
         var d = self.STEPS.filter(function (x) { return x.k === el.dataset.k; })[0];
-        self.wheels.push(makeWheel(el, d, changed));
+        var w = makeWheel(el, d, changed);
+        w.key = d.k;
+        self.wheels.push(w); self.planWheels.push(w);
+      });
+      document.querySelectorAll('.sheet-nav .tab').forEach(function (b) {
+        b.onclick = function () { self.showTab(b.dataset.tab); };
       });
 
       $('optVoice').onchange = function () { S.voice = this.checked; save(); self.syncSettings(); if (S.voice) Voice.speak(['round_1']); };
-      $('optVoiceName').onchange = function () {
-        var v = this.value;
-        if (v.indexOf('sys:') === 0) { S.voiceId = 'system'; S.sysVoiceURI = v.slice(4); Voice.loadSystem(); Clips.load('system'); Voice.say('Раунд три. Бокс!'); }
-        else { S.voiceId = v; Clips.load(v).then(function () { Voice.speak(['round_3']); }); }
-        save();
-      };
       $('optVolume').oninput = function () { S.volume = +this.value; Sound.setVolume(S.volume); save(); };
       $('optCount').onchange = function () { S.countVoice = this.checked; save(); };
       $('optHalf').onchange = function () { S.halfVoice = this.checked; save(); };
@@ -1371,32 +1413,37 @@
         parts.length ? parts.join(' · ') + ' — работает офлайн' : 'Топни 5 раз и подвигайся 10 секунд';
       $('btnCalReset').hidden = !(S.calMic || S.calMotion || S.stompModel);
     },
+    // Голоса — кнопками: касание выбирает и сразу даёт послушать (повторное — послушать ещё раз).
     fillVoices: function () {
-      var sel = $('optVoiceName');
-      if (!sel) return;
-      sel.innerHTML = '';
-      var cur = S.voiceId === 'system' ? 'sys:' + S.sysVoiceURI : S.voiceId;
-      Clips.voices.forEach(function (v) {
-        var o = document.createElement('option');
-        o.value = v.id; o.textContent = v.label + (v.engine === 'piper' ? ' · нейро' : v.engine === 'elevenlabs' ? ' · ElevenLabs' : '');
-        sel.appendChild(o);
+      var box = $('voiceChips'), self = this;
+      var list = Clips.voices.map(function (v) { return { id: v.id, name: v.label }; }).concat([{ id: 'system', name: 'iPhone' }]);
+      box.innerHTML = '';
+      list.forEach(function (v) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'chip-opt' + (S.voiceId === v.id ? ' on' : '');
+        b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', S.voiceId === v.id ? 'true' : 'false');
+        b.textContent = v.name;
+        b.onclick = function () {
+          Sound.unlock();
+          if (v.id === 'system') {
+            S.voiceId = 'system'; S.sysVoiceURI = ''; Voice.loadSystem();
+            if (Clips.voiceId !== 'system') Clips.load('system');
+            Voice.say('Раунд три. Бокс!');
+          } else if (Clips.voiceId === v.id) Voice.speak(['round_3']);
+          else { S.voiceId = v.id; Clips.load(v.id).then(function () { if (S.voiceId === v.id) Voice.speak(['round_3']); }); }
+          save(); self.fillVoices();
+        };
+        box.appendChild(b);
       });
-      var sys = Voice.sysVoices.length ? Voice.sysVoices : [{ voiceURI: '', name: 'iPhone' }];
-      sys.forEach(function (v) {
-        var o = document.createElement('option');
-        o.value = 'sys:' + v.voiceURI; o.textContent = v.name + ' · системный';
-        sel.appendChild(o);
-      });
-      sel.value = cur;
-      if (sel.selectedIndex < 0 && sel.options.length) sel.selectedIndex = 0;
     },
     voiceStatus: function () {
       var el = $('voiceStatus'); if (!el) return;
-      if (S.voiceId === 'system') { el.textContent = 'Системный голос iPhone — работает офлайн, но тише нейроголоса.'; return; }
+      // Пишем, только когда есть что сказать: загрузка или проблема. Всё готово — тишина.
+      if (S.voiceId === 'system') { el.textContent = 'Голос iPhone тише нейроголоса.'; return; }
       var n = Clips.count(), t = Clips.total;
-      if (!t) el.textContent = Clips.loading ? 'Загружаю голос…' : 'Файлы голоса не найдены — пока говорю системным голосом.';
-      else if (n < t) el.textContent = (Object.keys(Clips.raw).length >= t ? 'Готовлю голос ' : 'Загружаю голос ') + n + '/' + t + '…';
-      else el.textContent = 'Нейроголос загружен (' + t + ' фраз) — работает офлайн.';
+      if (!t) el.textContent = Clips.loading ? 'Загружаю голос…' : 'Файлы голоса не найдены — пока говорю голосом iPhone.';
+      else if (n < t) el.textContent = (Object.keys(Clips.raw).length >= t ? 'Готовлю голос ' : 'Загружаю голос ') + Math.round(n / t * 100) + '%…';
+      else el.textContent = '';
     },
 
     calibHits: 0,
@@ -1455,6 +1502,7 @@
   $('btnSkip').onclick = function () { Timer.skip(); };
   $('btnReset').onclick = function () { if (this.classList.contains('confirm')) Timer.reset(); else UI.resetConfirm(true); };
   $('btnEdit').onclick = function () { Timer.reset(); };
+  $('idleStatus').onclick = function () { if (S.stompMode !== 'off') UI.openSettings('hands'); };
   $('btnPauseSettings').onclick = function () { UI.openSettings(); };
   $('chipSettings').onclick = function () { UI.openSettings(); };
   $('chipVoice').onclick = function () { Listen.once(); };

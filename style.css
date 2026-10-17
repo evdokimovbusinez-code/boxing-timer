@@ -142,6 +142,7 @@ body.eco[data-phase="prep"][data-warn="1"] #root { animation: none; }
   white-space: nowrap;
 }
 .clock.long { font-size: min(31cqw, 74cqh); }
+.clock { transition: opacity .3s ease, transform .3s cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
 
 /* План до старта: три самых частых настройки — крупно, листаются пальцем */
 .plan { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: 100%; max-width: 980px; }
@@ -176,7 +177,7 @@ body[data-phase="prep"]:not(.eco) .bar { background: rgba(0, 0, 0, .14); }
 
 .idle-controls { display: none; flex-direction: column; align-items: center; gap: 8px; }
 .idle-btns { display: flex; gap: 10px; }
-.pause-controls { display: none; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.pause-controls { display: none; gap: 10px; justify-content: center; flex-wrap: wrap; position: relative; z-index: 2; }
 .pause-controls .hint { flex-basis: 100%; }
 
 /* Что видно в каждом состоянии */
@@ -191,7 +192,7 @@ body[data-phase="done"] #btnEdit { display: inline-flex; }
 body[data-phase="prep"] .clock, body[data-phase="round"] .clock, body[data-phase="rest"] .clock { display: block; }
 body[data-paused="0"][data-phase="prep"] .bar, body[data-paused="0"][data-phase="round"] .bar, body[data-paused="0"][data-phase="rest"] .bar { display: block; }
 body[data-paused="1"] .pause-controls { display: flex; }
-body[data-paused="1"] .clock { opacity: .5; font-size: min(40cqw, 56cqh); }
+body[data-paused="1"] .clock { opacity: .5; transform: translateY(-3%) scale(.68); }
 body[data-paused="1"] .phase-label { color: var(--warn); }
 
 .hint { margin: 0; text-align: center; font-size: 15px; opacity: .7; line-height: 1.35; }
@@ -211,7 +212,8 @@ body[data-paused="1"] .phase-label { color: var(--warn); }
   font-size: 17px; font-weight: 700;
   cursor: pointer;
 }
-.btn:active { transform: scale(.97); }
+button { transition: transform .12s ease; }
+button:active { transform: scale(.96); }
 .btn svg { font-size: 20px; }
 .btn-start {
   min-height: 60px; min-width: 260px;
@@ -277,41 +279,71 @@ body[data-paused="1"] .phase-label { color: var(--warn); }
 .cal-dots i.neg { background: #4cd964; border-color: #4cd964; width: 14px; height: 14px; margin-top: 4px; }
 .cal-actions { display: flex; gap: 10px; }
 
-/* ---------- Настройки ---------- */
+/* ---------- Настройки: вкладки слева, содержимое справа ---------- */
 .sheet {
   background: var(--bg); color: var(--fg); z-index: 30;
-  display: flex; flex-direction: column; padding-top: 0; padding-bottom: 0;
+  display: flex; padding-top: 0; padding-bottom: 0; padding-left: calc(12px + var(--sl)); gap: 0;
+  animation: sheetIn .26s cubic-bezier(.2, .8, .2, 1);
 }
+.sheet.closing { animation: sheetOut .2s ease-in forwards; }
+@keyframes sheetIn { from { opacity: 0; transform: translateY(7%); } }
+@keyframes sheetOut { to { opacity: 0; transform: translateY(7%); } }
+
+.sheet-nav {
+  flex: none; width: clamp(150px, 24cqw, 210px);
+  display: flex; flex-direction: column; gap: 4px;
+  padding: calc(12px + var(--st)) 12px calc(12px + var(--sb)) 0;
+  border-right: 1px solid var(--line); overflow: auto;
+}
+.sheet-nav h2 { margin: 2px 0 10px 4px; font-size: 22px; }
+.tab {
+  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 12px;
+  border: 0; border-radius: 12px; background: transparent; color: var(--muted);
+  font-size: 16px; font-weight: 700; text-align: left; cursor: pointer;
+}
+.tab svg { font-size: 20px; }
+.tab.on { background: var(--panel-2); color: var(--fg); }
+.tab.on svg { color: var(--accent); }
+
+.sheet-main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 0 0 0 20px; }
 .sheet-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: calc(10px + var(--st)) 0 10px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: calc(12px + var(--st)) 0 10px;
 }
-.sheet-head h2 { margin: 0; font-size: 22px; }
-.icon-btn { width: 44px; height: 44px; border-radius: 22px; border: 0; background: var(--faint); display: grid; place-items: center; font-size: 20px; cursor: pointer; }
+.sheet-head h3 { margin: 0; font-size: 20px; }
 .sheet-body {
-  overflow: auto; -webkit-overflow-scrolling: touch;
-  padding: 8px 0 calc(24px + var(--sb));
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0 28px; align-content: start;
+  flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  padding: 0 0 calc(24px + var(--sb));
 }
-.sheet section { padding: 12px 0; border-bottom: 1px solid var(--line); min-width: 0; }
-.sheet h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
-.tag { font-size: 11px; background: var(--faint); padding: 2px 6px; border-radius: 6px; margin-left: 6px; letter-spacing: .05em; }
+.sheet-body > section { animation: fadeIn .18s ease-out; }
+.tag { font-size: 11px; background: var(--faint); padding: 2px 6px; border-radius: 6px; margin-left: 4px; letter-spacing: .05em; vertical-align: 2px; }
 
-.presets { display: flex; flex-wrap: wrap; gap: 8px; }
-.preset { padding: 10px 12px; border-radius: 12px; background: var(--panel); border: 2px solid transparent; text-align: left; cursor: pointer; }
-.preset b { display: block; font-size: 15px; }
-.preset span { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.preset.active { border-color: var(--accent); }
+/* Пресеты — на главном экране, до старта */
+.preset-bar { display: none; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.preset-bar::-webkit-scrollbar { display: none; }
+body[data-phase="idle"] .preset-bar { display: flex; }
+body[data-phase="idle"] .phase-label { display: none; }
+.preset { flex: none; height: 40px; padding: 0 14px; font-size: 15px; box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .2s, background .2s; }
+.preset.active { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(255, 51, 71, .14); }
 
-.wheels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+/* Выбор голоса — кнопками */
+.chips-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
+.chip-opt {
+  min-height: 44px; padding: 0 16px; border-radius: 22px; border: 0; cursor: pointer;
+  background: var(--panel); color: var(--muted); font-size: 15px; font-weight: 700;
+  box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .2s, color .2s;
+}
+.chip-opt.on { color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent); }
+.hint:empty { display: none; }
+
+.wheels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }
 .wheel-cell { display: flex; flex-direction: column; align-items: center; padding-top: 8px; border-radius: 14px; background: var(--panel); min-width: 0; }
 .wheel-cell .lbl { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
-.wheel-sm { width: 100%; height: 112px; font-size: 22px; }
+.wheel-sm { width: 100%; height: min(150px, 42cqh); font-size: clamp(20px, 3.4cqw, 28px); }
 
 .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; font-size: 16px; }
 .row > span { min-width: 0; }
 .row em { display: block; font-style: normal; font-size: 12px; color: var(--muted); margin-top: 2px; }
-.row select { max-width: 55%; height: 38px; border-radius: 10px; background: var(--panel-2); color: var(--fg); border: 0; padding: 0 10px; font: inherit; font-size: 15px; }
 .row input[type="range"] { width: 50%; accent-color: var(--accent); }
 .sound-test { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0 0 4px; }
 .field-lbl { font-size: 14px; font-weight: 600; color: var(--muted); margin: 6px 0 6px; }
@@ -347,8 +379,39 @@ body[data-paused="1"] .phase-label { color: var(--warn); }
 }
 .toast.on { transform: translate(-50%, 0); }
 
+/* ---------- Анимации ----------
+   Только transform/opacity и только на переходах: в раунде ничего не крутится постоянно, батарея не страдает. */
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes enterZoom { from { opacity: 0; transform: scale(.92); } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(16px); } }
+@keyframes pop { 0% { transform: scale(.86); opacity: .4; } 60% { transform: scale(1.04); opacity: 1; } 100% { transform: none; } }
+@keyframes beat { 0% { transform: scale(1.07); } 100% { transform: none; } }
+@keyframes finishIn { 0% { opacity: 0; transform: scale(.6); } 70% { opacity: 1; transform: scale(1.06); } 100% { transform: none; } }
+@keyframes nudge { 0%, 100% { transform: none; } 30% { transform: scale(1.05); } }
+
+.plan, .idle-controls { animation: riseIn .32s cubic-bezier(.2, .8, .2, 1); }
+.plan-item:nth-child(2) { animation: riseIn .32s .04s cubic-bezier(.2, .8, .2, 1) backwards; }
+.plan-item:nth-child(3) { animation: riseIn .32s .08s cubic-bezier(.2, .8, .2, 1) backwards; }
+.clock.enter { animation: enterZoom .35s cubic-bezier(.2, .8, .2, 1); }
+.clock.pop, .phase-label.pop { animation: pop .45s cubic-bezier(.2, .8, .2, 1); }
+.clock.beat { animation: beat .4s ease-out; }
+body[data-paused="1"] .clock.beat { animation: none; }
+.summary-title { animation: finishIn .6s cubic-bezier(.2, .8, .2, 1); }
+.summary-text { animation: riseIn .4s .25s cubic-bezier(.2, .8, .2, 1) backwards; }
+body[data-phase="done"] .idle-controls { animation: riseIn .4s .4s cubic-bezier(.2, .8, .2, 1) backwards; }
+.pause-controls { animation: riseIn .26s cubic-bezier(.2, .8, .2, 1); }
+.btn.confirm { animation: nudge .3s ease-out; }
+.voice-layer:not([hidden]), .cal-layer:not([hidden]) { animation: fadeIn .2s ease-out; }
+.voice-card, .cal-card { animation: riseIn .3s cubic-bezier(.2, .8, .2, 1); }
+.live svg:not([hidden]) { animation: fadeIn .3s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
+}
+
 /* Невысокие экраны (iPhone SE и т. п.) */
 @container (max-height: 380px) {
   .btn-start, .btn-wide, .btn-big { min-height: 52px; }
+  .chip-label { display: none; }
   #stage { gap: 6px; }
 }
