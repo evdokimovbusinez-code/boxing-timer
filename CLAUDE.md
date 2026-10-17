@@ -63,6 +63,10 @@
   Team/Bundle/iPhone — из `~/Library/Application Support/boxing-timer/config`) и ставит по Wi-Fi (`xcrun devicectl`);
   обновления `main` ставит только ночью (2–6 ч). Клон на Mac — `~/boxing-timer`, локальные правки там затираются (`git reset --hard`).
 - Новый плагин Capacitor → `npm i` + `npx cap sync ios` (обновит `ios/App/CapApp-SPM/Package.swift`) и закоммитить.
+- Capacitor отдаёт медиафайлы (mp3) без HTTP-статуса: `fetch` даёт `status 0`, `r.ok === false` — проверять `r.ok || r.status === 0`
+  (иначе голос молчит, а синтезированные сигналы играют). Пока микрофон включён, WebKit ставит playAndRecord — iOS уводит звук
+  в разговорный динамик и глушит хаптику: AppDelegate возвращает громкий динамик и `setAllowHapticsAndSystemSoundsDuringRecording`.
+  Хаптика в приложении — `impact` (MEDIUM на шаг колеса, HEAVY на кнопку, двойной HEAVY на старт/паузу): тик выбора еле слышен.
 - Голосовые команды (`webkitSpeechRecognition`) в WKWebView могут не работать — тогда кнопка «Голосом» скрыта (`Listen.supported`).
 
 ## Выученные грабли iOS (не наступать снова)

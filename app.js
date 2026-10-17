@@ -209,8 +209,9 @@
             if (gen !== self.gen) return null;
             if (i >= ids.length) return null;
             var cid = ids[i++];
-            return fetch('voices/' + id + '/' + cid + '.mp3').then(function (r) { return r.ok ? r.arrayBuffer() : null; })
-              .then(function (ab) { if (ab && gen === self.gen) { self.raw[cid] = ab; return self.decode(cid); } })
+            // В приложении (Capacitor) mp3 приходят ответом без HTTP-статуса (status 0) — это не ошибка.
+            return fetch('voices/' + id + '/' + cid + '.mp3').then(function (r) { return r.ok || r.status === 0 ? r.arrayBuffer() : null; })
+              .then(function (ab) { if (ab && ab.byteLength && gen === self.gen) { self.raw[cid] = ab; return self.decode(cid); } })
               .catch(function () {})
               .then(function () { if (i % 12 === 0) UI.voiceStatus(); return next(); });
           };
@@ -351,7 +352,6 @@
       document.querySelectorAll('button, .wheel, #stage, #gate').forEach(function (el) { Haptic.attach(el); });
     },
     // В приложении — Taptic Engine напрямую: тик на каждое значение колеса, как в будильнике, и без касания тоже.
-    selOn: false,
     native: function (kind) {
       var C = window.Capacitor, h = C.Plugins && C.Plugins.Haptics;
       var call = function (m, o) {
@@ -360,10 +360,11 @@
           if (r && r.catch) r.catch(function () {});
         } catch (e) {}
       };
-      if (kind !== 'tick') { call('impact', { style: kind === 'strong' ? 'HEAVY' : 'LIGHT' }); return; }
-      // Тик колеса — UISelectionFeedbackGenerator; без selectionStart плагин молча ничего не делает.
-      if (!this.selOn) { this.selOn = true; call('selectionStart'); }
-      call('selectionChanged');
+      // Владелец: «хаптики посильнее». Системный тик выбора еле слышен — везде удар Taptic Engine:
+      // колесо — средний на каждое значение, кнопка — сильный, старт/пауза — двойной сильный.
+      if (kind === 'tick') { call('impact', { style: 'MEDIUM' }); return; }
+      call('impact', { style: 'HEAVY' });
+      if (kind === 'strong') setTimeout(function () { call('impact', { style: 'HEAVY' }); }, 110);
     },
     /** tick — шаг колеса, tap — кнопка, strong — старт, пауза, сброс. Сайт вибрирует только на Android, приложение — везде. */
     play: function (kind) {
