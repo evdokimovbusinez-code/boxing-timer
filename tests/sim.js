@@ -30,7 +30,7 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
   // Свои виртуальные часы: таймеры страницы идут по очереди синхронно, без ожидания (Playwright clock отдаёт
   // управление браузеру после каждого таймера — ~4 мс на секунду тренировки, в 300 раз медленнее).
   await page.addInitScript(function () {
-    localStorage.setItem('boxing-timer.settings.v1', JSON.stringify({ rev: 4, stompMode: 'off', prepSec: 10, tickSec: 5 }));
+    localStorage.setItem('boxing-timer.settings.v1', JSON.stringify({ rev: 5, stompMode: 'off', prepSec: 10, tickSec: 5 }));
     var t = 0, seq = 0, q = {}, d0 = Date.now();
     performance.now = function () { return t; };
     Date.now = function () { return d0 + t; };
@@ -85,8 +85,8 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
     var a = r === 10 ? 'last_round' : 'round_' + r;
     ok('спарринг: объявлен раунд ' + r, L.some(function (e) { return e.k === 'say' && e.r === r && e.ph === 'round' && e.v.indexOf(a) === 0; }));
   }
-  ok('спарринг: 10 стартовых сигналов', count(L, 'snd', 'r_bell') === 10, count(L, 'snd', 'r_bell'));
-  ok('спарринг: 9 гонгов на конец раунда', count(L, 'snd', 'r_gong') === 9, count(L, 'snd', 'r_gong'));
+  ok('спарринг: 10 стартовых сигналов', count(L, 'snd', 'r_start') === 10, count(L, 'snd', 'r_start'));
+  ok('спарринг: 9 сигналов на конец раунда', count(L, 'snd', 'r_end') === 9, count(L, 'snd', 'r_end'));
   ok('спарринг: «10 секунд» в каждом раунде', count(L, 'say', function (v) { return /warn_10/.test(v); }) >= 10);
   ok('спарринг: тиканье только в последние 5 с', L.every(function (e) { return e.v !== 'tick' || e.s <= 5; }));
   ok('спарринг: финиш', count(L, 'snd', 'finish') === 1 && count(L, 'say', 'finish') === 1);
@@ -116,8 +116,42 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
     ok(id + ': финиш', count(G, 'snd', 'finish') === 1);
   }
 
+  // Цифры влезают между вырезом и краем: iPhone с чёлкой/островом в горизонтали × все шрифты × все состояния экрана.
+  // (Шрифтов iPhone в песочнице нет — проверяются запасные; табло DSEG7 — настоящее.)
+  await page.evaluate(function () { return document.fonts.load('800 40px DSEG7'); }); // табло — из файла
+  var DEVICES = [['SE', 667, 375, 0, 0], ['14', 844, 390, 47, 21], ['15 Pro Max', 932, 430, 59, 21]];
+  for (var d = 0; d < DEVICES.length; d++) {
+    var D = DEVICES[d];
+    await page.setViewportSize({ width: D[1], height: D[2] });
+    var cut = await page.evaluate(function (D) {
+      var B = window.BoxTimer, T = B.Timer, root = document.getElementById('root'), out = [];
+      root.style.setProperty('--sl', D[3] + 'px'); root.style.setProperty('--sr', D[3] + 'px'); root.style.setProperty('--sb', D[4] + 'px');
+      var check = function (what) {
+        var el = document.getElementById('clock'), st = document.getElementById('stage'), cs = getComputedStyle(st);
+        el.classList.remove('enter', 'pop', 'beat'); // анимации на миг меняют масштаб — меряем цифры в покое
+        var rg = document.createRange(); rg.selectNodeContents(el);
+        var c = rg.getBoundingClientRect(), sr = st.getBoundingClientRect();
+        var left = sr.left + parseFloat(cs.paddingLeft) - 16, right = sr.right - parseFloat(cs.paddingRight) + 16; // поля 16 px — запас, вырез — нет
+        if (c.left < left - 1 || c.right > right + 1) out.push(B.S.font + ' ' + what + ' ' + Math.round(c.left) + '…' + Math.round(c.right) + ' вне ' + Math.round(left) + '…' + Math.round(right));
+      };
+      Object.keys(B.FONTS).forEach(function (f) {
+        B.S.font = f; B.UI.applyLook();
+        [['spar', 120], ['spar', 600], ['bag', 0]].forEach(function (m) {
+          B.S.mode = m[0]; if (m[1]) B.S.roundSec = m[1]; B.Plan.refresh();
+          T.reset(); B.UI.render(true); check('готовность ' + m.join(''));
+          B.S.prepSec = 0; T.start(); B.UI.render(true); check('раунд ' + m.join(''));
+          T.pause(); B.UI.render(true); check('пауза ' + m.join(''));
+          T.resume(); T.enter('rest'); B.UI.render(true); check('отдых ' + m.join(''));
+        });
+      });
+      T.reset(); root.style.cssText = ''; B.S.prepSec = 10; B.S.mode = 'spar'; B.S.roundSec = 120; B.Plan.refresh();
+      return out;
+    }, D);
+    ok('iPhone ' + D[0] + ': цифры не обрезаются', !cut.length, cut.slice(0, 6));
+  }
+
   ok('нет ошибок на странице', !errors.length, errors.slice(0, 3));
   await browser.close();
-  console.log((fail ? fail + ' упало' : 'всё прошло') + ' · симуляция 1 спарринга и ' + BP.PROGRAMS.length + ' программ груши за ' + ((Date.now() - t0) / 1000).toFixed(1) + ' с');
+  console.log((fail ? fail + ' упало' : 'всё прошло') + ' · симуляция 1 спарринга, ' + BP.PROGRAMS.length + ' программ груши и экран 3 iPhone за ' + ((Date.now() - t0) / 1000).toFixed(1) + ' с');
   process.exit(fail ? 1 : 0);
 })().catch(function (e) { console.error(e); process.exit(1); });

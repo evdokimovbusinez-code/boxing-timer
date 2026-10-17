@@ -1,9 +1,9 @@
 /* Офлайн-кэш: таймер работает в зале без интернета. */
-const CACHE = 'boxing-timer-v11';
+const CACHE = 'boxing-timer-v13';
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'i18n.js', 'parse.js', 'detect.js', 'programs.js', 'voice-phrases.js', 'stomp-worklet.js',
   'manifest.webmanifest', 'media/keepawake.mp4',
-  'sounds/r_bell.mp3', 'sounds/r_gong.mp3', 'sounds/r_whistle.mp3', 'sounds/r_horn.mp3', 'sounds/tick.mp3',
+  'fonts/DSEG7Classic-Bold.woff2', 'sounds/r_start.mp3', 'sounds/r_end.mp3', 'sounds/r_bell.mp3', 'sounds/r_gong.mp3', 'sounds/r_whistle.mp3', 'sounds/r_horn.mp3', 'sounds/tick.mp3',
   'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'
 ];
 
