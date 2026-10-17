@@ -36,10 +36,9 @@
       'tab.hands': 'Без рук', 'tab.handsTitle': 'Управление без рук', 'tab.general': 'Общее',
       'workout.hint': 'Листай пальцем. <b>Подготовка</b> — время до первого раунда. <b>Сигнал за</b> — когда до конца раунда звучит «тук-тук» и «десять секунд».',
 
-      'opt.voice': 'Голосовой помощник', 'opt.voice.sub': 'номер раунда, «10 секунд», «отдых»', 'voice.aria': 'Голос',
+      'opt.voice': 'Голосовой помощник', 'opt.voice.sub': 'номер раунда, «10 секунд», «отдых»',
       'opt.count': 'Считать вслух 5…1 в конце раунда', 'opt.half': 'Сигнал «Половина» в середине раунда', 'opt.volume': 'Громкость',
-      'test': 'Проверить звук', 'test.start': 'Старт', 'test.10': '10 сек', 'test.end': 'Конец', 'test.voice': 'Голос',
-      'vs.system': 'Голос iPhone тише нейроголоса.', 'vs.loading': 'Загружаю голос…',
+      'test': 'Проверить звук', 'test.start': 'Старт', 'test.10': '10 сек', 'test.end': 'Конец', 'test.voice': 'Голос', 'vs.loading': 'Загружаю голос…',
       'vs.missing': 'Файлы голоса не найдены — пока говорю голосом iPhone.',
       'vs.download': 'Загружаю голос {p}%…', 'vs.prepare': 'Готовлю голос {p}%…',
 
@@ -100,9 +99,6 @@
       't.update': 'Вышла новая версия — перезапусти таймер, когда закончишь',
 
       'say.prep': 'Приготовиться. {rounds}',
-      'say.seconds': ['{n} секунда', '{n} секунды', '{n} секунд'],
-      'say.round': 'Раунд {r}. Осталось {left}', 'say.rest': 'Отдых. До раунда {r} {left}', 'say.prepShort': 'Подготовка',
-      'say.sample': 'Раунд три. Бокс!', 'say.ok': '{msg}. Готово',
       'describe': '{rounds} по {len}, отдых {rest}'
     },
 
@@ -138,10 +134,9 @@
       'tab.hands': 'Hands-free', 'tab.handsTitle': 'Hands-free control', 'tab.general': 'General',
       'workout.hint': 'Swipe to change. <b>Get ready</b> — countdown before round one. <b>Warning</b> — when the knock and “ten seconds” play before the round ends.',
 
-      'opt.voice': 'Voice coach', 'opt.voice.sub': 'round number, “ten seconds”, “rest”', 'voice.aria': 'Voice',
+      'opt.voice': 'Voice coach', 'opt.voice.sub': 'round number, “ten seconds”, “rest”',
       'opt.count': 'Count down 5…1 out loud', 'opt.half': '“Halfway” signal mid-round', 'opt.volume': 'Volume',
-      'test': 'Test sound', 'test.start': 'Start', 'test.10': '10 sec', 'test.end': 'End', 'test.voice': 'Voice',
-      'vs.system': 'The iPhone voice is quieter than the neural voices.', 'vs.loading': 'Loading voice…',
+      'test': 'Test sound', 'test.start': 'Start', 'test.10': '10 sec', 'test.end': 'End', 'test.voice': 'Voice', 'vs.loading': 'Loading voice…',
       'vs.missing': 'Voice files not found — using the iPhone voice for now.',
       'vs.download': 'Downloading voice {p}%…', 'vs.prepare': 'Preparing voice {p}%…',
 
@@ -202,9 +197,6 @@
       't.update': 'A new version is ready — restart the timer when you’re done',
 
       'say.prep': 'Get ready. {rounds}',
-      'say.seconds': ['{n} second', '{n} seconds'],
-      'say.round': 'Round {r}. {left} left', 'say.rest': 'Rest. Round {r} in {left}', 'say.prepShort': 'Get ready',
-      'say.sample': 'Round three. Box!', 'say.ok': '{msg}. Done',
       'describe': '{rounds} of {len}, rest {rest}'
     }
   };

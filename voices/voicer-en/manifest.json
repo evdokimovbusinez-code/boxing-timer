@@ -2,6 +2,7 @@
  "label": "Artem",
  "engine": "voicer",
  "lang": "en",
+ "voice_id": "rQOBu7YxCDxGiFdTm28w",
  "clips": {
   "prep": "Get ready!",
   "start": "Start!",
@@ -112,8 +113,14 @@
   "cnt_5": "Five!",
   "pause": "Pause.",
   "resume": "Let's go!",
-  "reset": "Reset.",
-  "finish": "Workout complete. Great job!"
- },
- "voice_id": "rQOBu7YxCDxGiFdTm28w"
+  "finish": "Workout complete. Great job!",
+  "warn_25": "Twenty-five seconds!",
+  "warn_35": "Thirty-five seconds!",
+  "warn_40": "Forty seconds!",
+  "warn_45": "Forty-five seconds!",
+  "warn_50": "Fifty seconds!",
+  "warn_55": "Fifty-five seconds!",
+  "warn_60": "Sixty seconds!",
+  "ok": "Done!"
+ }
 }

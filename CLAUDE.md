@@ -23,7 +23,7 @@
 ## Стек и правила
 - Без сборки: чистые HTML/CSS/JS, ES5-стиль (`var`, функции) — так и продолжать, никаких фреймворков и бандлеров.
 - `detect.js`, `parse.js`, `voice-phrases.js` — чистая логика без браузерных API (UMD, `globalThis`), всё покрыто тестами.
-- Тесты: `node tests/run.js` (сейчас 94, все зелёные). Любое изменение логики — сначала тест.
+- Тесты: `node tests/run.js` (сейчас 104, все зелёные). Любое изменение логики — сначала тест.
 - Локально: `python3 -m http.server 8000`. Отладка клавишами: Пробел — старт/пауза, `S` — «топ», `N` — дальше, `R` — сброс.
 - При изменении файлов, которые должны работать офлайн, — добавить в `FILES` в `sw.js` и поднять версию `CACHE`.
 - Коммиты на русском, описывают «что и зачем».
@@ -34,17 +34,16 @@
 - `detect.js` — OnsetDetector (атака относительно огибающей, адаптивный фон), DoubleTap/SingleTap (защита от ритма),
   PeakCollector, `features`/`lowHigh`/`trainModel`/`predict` (логистическая регрессия «топот / не топот»).
 - `stomp-worklet.js` — детектор в AudioWorklet (грузится после `detect.js` через `audioWorklet.addModule`).
-- `voice-phrases.js` — 111 фраз на каждом языке (`list('ru'|'en')`, id одинаковые). Приложение играет `voices/<голос>/<id>.mp3`;
-  у голоса в `voices/index.json` есть `lang`.
-- `tools/gen_voices.py` + `.github/workflows/voices.yml` — озвучка в GitHub Actions: Piper ru (dmitri, ruslan, denis, irina) и en (en-ryan, en-joe, en-alan, en-amy);
-  ElevenLabs — если в репо есть секрет `ELEVENLABS_API_KEY` (+ переменная `ELEVENLABS_VOICE_ID`). Запускается сам при изменении фраз.
-  **Основной голос — «Артём» (voicer, voicer-en)**: Voicer API (voicer.mat3u.com, документация /docs.json), голос ElevenLabs
-  `rQOBu7YxCDxGiFdTm28w` через его клон в Cartesia; английский — тем же клоном с `language: en`. Секрет `VOICER_API_KEY`
-  (ключ — только в секрете, не в репо). Одна задача на язык: `split_type: paragraphs` + `split_output` → ZIP по фразам.
-  Cloudflare сервиса режет User-Agent urllib — свой UA обязателен. Повторная генерация берёт только изменённые фразы.
+- `voice-phrases.js` — 118 фраз на каждом языке (`list('ru'|'en')`, id одинаковые). Приложение играет `voices/voicer[-en]/<id>.mp3`.
+  **Голос один — Артём, выбора нет** (желание владельца). Всё, что таймер говорит, должно быть записью (тест проверяет);
+  голос iPhone — только если записей нет вообще, иначе лучше промолчать, чем заговорить чужим голосом.
+- `tools/gen_voices.py` + `.github/workflows/voices.yml` — озвучка голосом Артёма через Voicer API (voicer.mat3u.com, /docs.json):
+  голос ElevenLabs `rQOBu7YxCDxGiFdTm28w` его клоном в Cartesia, английский — тем же клоном с `language: en`. Ключ — секрет
+  `VOICER_API_KEY` (не в репо). Одна задача на язык: `split_type: paragraphs` + `split_output` → ZIP по фразам. Cloudflare сервиса
+  режет User-Agent urllib — свой UA обязателен. Озвучиваются только новые/изменённые фразы, лишние mp3 удаляются.
 - `parse.js` — разбор фраз и команд на русском и английском («10 раундов по 2 минуты, отдых минута» / «10 rounds of 2 minutes, rest 1 minute»).
 - `i18n.js` — все тексты интерфейса, ru и en (`L('ключ', {n})` в `app.js`; в разметке `data-i18n`, `data-i18n-html`, `data-i18n-aria`).
-  **Любая новая строка — сразу в оба языка** (тест проверяет, что ключи совпадают). Язык — `S.lang`; голос свой для каждого языка (`voiceId`/`voiceIdEn`).
+  **Любая новая строка — сразу в оба языка** (тест проверяет, что ключи совпадают). Язык — `S.lang`.
 - `sw.js` — офлайн-кэш stale-while-revalidate (старт из кэша, обновление на следующий запуск).
 
 ## Выученные грабли iOS (не наступать снова)
@@ -60,8 +59,11 @@
 - `speechSynthesis` на iOS: держать ссылку на utterance (иначе GC и нет `onend`), cancel+speak с паузой 80 мс.
 - Голосовые команды и топот через микрофон конфликтуют (микрофон один) — команды переводят топот на датчик.
 - Вибрации (`navigator.vibrate`) на iOS нет. Хаптика (`Haptic` в `app.js`): iOS 18+ даёт тик Taptic Engine при переключении
-  `<input type="checkbox" switch>` — «щёлкаем» скрытый (`#hapticSwitch`). Только внутри обработчика касания: от таймера,
-  топота и инерции колеса iOS может промолчать. Android — `navigator.vibrate`.
+  `<input type="checkbox" switch>` — как в библиотеке ios-haptics: на каждый тик новый скрытый переключатель в `<head>`, клик по
+  подписи, удаление. Поддержку определяем по устройству (iPhone/iPad), не по свойству `switch`. Только внутри обработчика
+  касания: от таймера и инерции колеса iOS может промолчать. Android — `navigator.vibrate`.
+- Касание экрана и своя хаптика дают «тук» в корпусе — микрофон и датчик принимают его за топот. `D.TouchGuard`: удары
+  в пределах 450 мс до/после касания или вибрации не считаются, начатый двойной топ сбрасывается (`Stomp.touched`).
 
 ## Экран (UX)
 Один экран `#stage`, состояние — в `body[data-phase][data-paused]`, видимость блоков — только CSS. До старта — план (3 колеса `makeWheel`, значения — `BoxParse.choices`),

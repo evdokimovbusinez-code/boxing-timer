@@ -94,6 +94,14 @@
     if (this.cand && t - this.cand >= this.qa) { this.cand = 0; return true; }
     return false;
   };
+  SingleTap.prototype.clear = function () { this.cand = 0; this.last = -1e9; };
+
+  /** Касание экрана и вибрация самого телефона (хаптика) дают «тук» в корпусе — для микрофона и датчика
+   *  он неотличим от топота. touch(t) — палец коснулся/отпустил или телефон завибрировал;
+   *  blocks(t) — удар в пределах ms до или после этого (звук в корпусе может опередить событие касания). */
+  function TouchGuard(ms) { this.ms = ms || 450; this.last = -1e9; }
+  TouchGuard.prototype.touch = function (t) { this.last = t; };
+  TouchGuard.prototype.blocks = function (t) { return Math.abs(t - this.last) < this.ms; };
 
   /** Сборщик пиков для калибровки: каждое событие — максимум за 90 мс после атаки. */
   function PeakCollector(floorMult) { this.floorMult = floorMult || 4; this.events = []; this.ev = null; this.lastEnd = -1e9; }
@@ -207,7 +215,7 @@
     return sigmoid(z);
   }
 
-  var api = { OnsetDetector: OnsetDetector, DoubleTap: DoubleTap, SingleTap: SingleTap, PeakCollector: PeakCollector, threshold: threshold, lerp: lerp,
+  var api = { OnsetDetector: OnsetDetector, DoubleTap: DoubleTap, SingleTap: SingleTap, TouchGuard: TouchGuard, PeakCollector: PeakCollector, threshold: threshold, lerp: lerp,
     features: features, levelDb: levelDb, lowHigh: lowHigh, LOW_MIN: LOW_MIN, trainModel: trainModel, predict: predict, BANDS: BANDS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.BoxDetect = api;

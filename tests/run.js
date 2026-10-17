@@ -37,6 +37,36 @@ for (const [t, e] of [['старт', 'start'], ['пауза', 'pause'], ['про
   check('команда: ' + t, P.parseCommand(t) === e, String(P.parseCommand(t)));
 }
 
+/* ---------- Касание экрана и хаптика — не топот ---------- */
+{
+  const g = new D.TouchGuard(450);
+  check('касание: удар без касаний проходит', !g.blocks(10000));
+  g.touch(10000);
+  check('касание: удар сразу после касания отброшен', g.blocks(10030) && g.blocks(10440));
+  check('касание: удар чуть раньше касания тоже отброшен (звук в корпусе быстрее события)', g.blocks(9950) && g.blocks(9600));
+  check('касание: через полсекунды — снова топот', !g.blocks(10460) && !g.blocks(9540));
+  const s = new D.SingleTap(900, 700);
+  s.push(1000); s.clear();
+  check('SingleTap.clear: ожидающий удар отменён', !s.confirm(2000));
+  // Сценарий «держу телефон и жму кнопки»: каждое касание даёт стук — двойной топ не набирается.
+  const dt = new D.DoubleTap(90, 900, 500, 450), guard = new D.TouchGuard(450);
+  let fired = 0;
+  for (let k = 0; k < 6; k++) {
+    const touchAt = 20000 + k * 700;
+    guard.touch(touchAt); dt.clear();
+    for (const hitAt of [touchAt + 20, touchAt + 180]) {          // стук пальца и стук хаптики
+      if (guard.blocks(hitAt)) continue;
+      if (dt.push(hitAt) === 'second' && dt.confirm(hitAt + 2000)) fired++;
+    }
+  }
+  check('касания кнопок не запускают таймер', fired === 0, fired + ' срабатываний');
+  // А настоящий двойной топ без касаний — работает.
+  const dt2 = new D.DoubleTap(90, 900, 500, 450), g2 = new D.TouchGuard(450);
+  g2.touch(30000);
+  const ok2 = !g2.blocks(32000) && dt2.push(32000) === 'first' && dt2.push(32350) === 'second' && dt2.confirm(32350 + 500);
+  check('настоящий двойной топ через 2 с после касания работает', ok2);
+}
+
 /* ---------- Английский: те же настройки голосом и команды ---------- */
 const en = [
   ['10 rounds of 2 minutes rest 1 minute', { rounds: 10, roundSec: 120, restSec: 60 }],
@@ -294,6 +324,12 @@ function runOld(samples, sens) {
   check('фразы en: те же id, что и ru', ru.length === enl.length && ru.every((x, i) => x.id === enl[i].id), enl.length + ' фраз');
   const t = Object.fromEntries(enl.map(x => [x.id, x.text]));
   check('фразы en: текст', t.round_3 === 'Round three. Box!' && t.left_7 === 'Seven rounds left.' && t.left_1 === 'One round left.' && t.left_21 === 'Twenty-one rounds left.' && t.warn_10 === 'Ten seconds!' && t.ready_4 === 'Get ready, round four.', [t.round_3, t.left_7, t.left_21, t.ready_4].join(' | '));
+  // Говорит только Артём: у всего, что таймер произносит, должна быть запись, иначе прозвучит голос iPhone.
+  const ids = new Set(ru.map(x => x.id));
+  const warns = P.choices('warnSec').filter(Boolean);
+  check('фразы: на каждое значение «Сигнал за» есть запись', warns.every(w => ids.has('warn_' + w)), warns.filter(w => !ids.has('warn_' + w)).join(','));
+  check('фразы: «Готово!» для голосовой настройки', t.ok === 'Done!' && ru.find(x => x.id === 'ok').text === 'Готово!');
+  check('фразы: лишних нет (reset не произносится)', !ids.has('reset'));
   check('фразы: без языка — русские', PH.list()[3].text === ru[3].text && /Раунд/.test(ru[3].text));
   const I = require('../i18n.js');
   const kr = Object.keys(I.DICT.ru), ke = Object.keys(I.DICT.en);

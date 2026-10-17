@@ -1,7 +1,8 @@
-name: Озвучка нейроголосом
+name: Озвучка голосом Артёма
 
-# Озвучивает фразы из voice-phrases.js и коммитит mp3 в voices/.
-# Запускается сам, когда меняется список фраз, или вручную: Actions → «Озвучка нейроголосом» → Run workflow.
+# Озвучивает фразы из voice-phrases.js голосом Артёма (Voicer API) и коммитит mp3 в voices/.
+# Запускается сам, когда меняется список фраз, или вручную: Actions → «Озвучка голосом Артёма» → Run workflow.
+# Нужен секрет VOICER_API_KEY (без него шаг ничего не делает). Озвучиваются только новые и изменённые фразы.
 on:
   push:
     branches: [main]
@@ -21,7 +22,7 @@ concurrency:
 jobs:
   voices:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -30,20 +31,10 @@ jobs:
           python-version: '3.12'
 
       - name: Зависимости
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-          pip install -q piper-tts==1.8.0
-
-      - name: Кэш моделей Piper
-        uses: actions/cache@v4
-        with:
-          path: /tmp/piper-models
-          key: piper-ru-en-medium-v2
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
       - name: Озвучка
         env:
-          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
           VOICER_API_KEY: ${{ secrets.VOICER_API_KEY }}
           VOICER_VOICE_ID: ${{ vars.VOICER_VOICE_ID }}
         run: python tools/gen_voices.py
@@ -52,7 +43,7 @@ jobs:
         run: |
           git config user.name "voice-bot"
           git config user.email "voice-bot@users.noreply.github.com"
-          git add voices
+          git add -A voices
           if git diff --cached --quiet; then echo "нечего коммитить"; exit 0; fi
           git commit -m "Озвучка: обновлены голосовые файлы"
           git pull --rebase origin main

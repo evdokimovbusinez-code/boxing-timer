@@ -327,14 +327,6 @@ body[data-phase="idle"] .phase-label { display: none; }
 .preset { flex: none; height: 40px; padding: 0 14px; font-size: 15px; box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .2s, background .2s; }
 .preset.active { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(255, 51, 71, .14); }
 
-/* Выбор голоса — кнопками */
-.chips-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
-.chip-opt {
-  min-height: 44px; padding: 0 16px; border-radius: 22px; border: 0; cursor: pointer;
-  background: var(--panel); color: var(--muted); font-size: 15px; font-weight: 700;
-  box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .2s, color .2s;
-}
-.chip-opt.on { color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent); }
 .hint:empty { display: none; }
 
 .wheels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }

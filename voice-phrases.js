@@ -34,7 +34,7 @@
   }
 
   var MAX_ROUNDS = 30;
-  var WARN = [5, 10, 15, 20, 30];
+  var WARN = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]; // все значения колеса «Сигнал за»
 
   /** Фразы на языке lang ('ru' по умолчанию или 'en'). id одинаковые — приложению всё равно, на каком языке файл. */
   function list(lang) {
@@ -58,7 +58,7 @@
     for (var c = 1; c <= 5; c++) add('cnt_' + c, cap(words(c)) + '!');
     add('pause', 'Пауза.');
     add('resume', 'Продолжаем!');
-    add('reset', 'Сброс.');
+    add('ok', 'Готово!');
     add('finish', 'Тренировка окончена. Отличная работа!');
     return out;
   }
@@ -81,7 +81,7 @@
     for (var c = 1; c <= 5; c++) add('cnt_' + c, cap(wordsEn(c)) + '!');
     add('pause', 'Pause.');
     add('resume', "Let's go!");
-    add('reset', 'Reset.');
+    add('ok', 'Done!');
     add('finish', 'Workout complete. Great job!');
     return out;
   }
