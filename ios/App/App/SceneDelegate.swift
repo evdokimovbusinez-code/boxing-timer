@@ -23,10 +23,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// Весь экран — таймеру: без строки состояния, полоска «Домой» прячется, а случайный свайп от края
-/// (перчаткой, полотенцем) не сворачивает приложение с первого раза.
+/// Весь экран — таймеру: полоска «Домой» прячется, а случайный свайп от края (перчаткой, полотенцем)
+/// не сворачивает приложение с первого раза. Строку состояния Capacitor прячет сам — по UIStatusBarHidden в Info.plist.
 class TimerViewController: CAPBridgeViewController {
-    override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
 }

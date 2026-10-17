@@ -49,6 +49,7 @@ jobs:
         run: npm ci && npm run sync
 
       - name: Сборка без подписи
+        shell: bash # с pipefail: ошибка xcodebuild не должна теряться за «| tail»
         run: |
           VERSION="1.0.${{ github.run_number }}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -57,7 +58,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             build | tail -n 40
-          test -d build/dd/Build/Products/Release-iphoneos/App.app
+          test -x build/dd/Build/Products/Release-iphoneos/App.app/App
           mkdir -p build/Payload
           cp -R build/dd/Build/Products/Release-iphoneos/App.app build/Payload/
           (cd build && zip -qry Rounds.ipa Payload)
