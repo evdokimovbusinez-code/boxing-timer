@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var P = window.BoxParse, D = window.BoxDetect, PH = window.BoxPhrases, I = window.BoxI18n;
+  var P = window.BoxParse, D = window.BoxDetect, PH = window.BoxPhrases, I = window.BoxI18n, BP = window.BoxPrograms;
   var $ = function (id) { return document.getElementById(id); };
   var now = function () { return performance.now(); };
   // Внутри приложения для iPhone (обёртка Capacitor, папка ios/): экран, поворот и звук держит сам iOS, хаптика — нативная.
@@ -13,6 +13,7 @@
     rounds: 10, roundSec: 120, restSec: 60, prepSec: 10, warnSec: 10,
     lang: 'ru', voice: true, volume: 1.4, loudRounds: true,
     countVoice: true, halfVoice: false, sndStart: 'r_bell', sndEnd: 'r_gong', sndWarn: 'clapper', tickSec: 5, font: 'rounded', rev: 4,
+    mode: 'spar', bagGoal: 'burst', bagLevel: 'amateur',
     stompMode: 'mic', stompPattern: 'double', stompInRound: false, sens: 0.55,
     calMic: null, calMotion: null, stompModel: null,
     commands: false, flip: false, eco: false, dimIdle: true
@@ -21,7 +22,6 @@
     { key: 'preset.spar', rounds: 10, roundSec: 120, restSec: 60 },
     { key: 'preset.pro', rounds: 12, roundSec: 180, restSec: 60 },
     { key: 'preset.amateur', rounds: 3, roundSec: 180, restSec: 60 },
-    { key: 'preset.bag', rounds: 6, roundSec: 180, restSec: 30 },
     { key: 'preset.tabata', rounds: 8, roundSec: 20, restSec: 10 }
   ];
   var KEY = 'boxing-timer.settings.v1';
@@ -799,6 +799,53 @@
     }
   };
 
+  /* ================= План тренировки: «Спарринг» (колёса) или «Груша» (программа тренера) ================= */
+  var Plan = {
+    prog: null,
+    refresh: function () { this.prog = S.mode === 'bag' ? BP.expand(BP.find(S.bagGoal, S.bagLevel)) : null; },
+    bag: function () { return !!this.prog; },
+    rounds: function () { return this.prog ? this.prog.rounds.length : S.rounds; },
+    roundSec: function (n) { return this.prog ? this.prog.rounds[Math.max(0, (n || 1) - 1)].sec : S.roundSec; },
+    restSec: function () { return this.prog ? this.prog.rest : S.restSec; },
+    total: function () { return this.prog ? this.prog.total : S.rounds * S.roundSec + Math.max(0, S.rounds - 1) * S.restSec; }
+  };
+
+  /* ================= Тренер на груше: отрезки внутри раунда — звук + задание голосом ================= */
+  // Владелец: «главное слышать». Смена отрезка — звуком (горн — максимум, свисток — «сильно» и выход из него,
+  // колокол — спокойная смена), задание — голосом Артёма, только когда оно новое в раунде; «максимум» напоминаем
+  // не чаще раза в 25 с. Последние 6 с раунда — только звук: там счёт 5…1. Перед «максимумом» — тиканье 5 с.
+  var Coach = {
+    spoke: {}, lastAt: 0,
+    intense: function (seg) { return !!seg && (seg.type === 'max' || seg.type === 'hard'); },
+    // Начало раунда: после «Раунд N» — задание первого отрезка.
+    roundIds: function (r) {
+      var R = Plan.prog.rounds[r - 1];
+      this.spoke = {}; this.lastAt = now();
+      if (!R) return [];
+      this.spoke[R.segs[0].task] = 1;
+      return ['bag_' + R.segs[0].task];
+    },
+    onSecond: function (sec) {
+      var R = Plan.prog.rounds[Timer.round - 1];
+      if (!R) return;
+      var el = R.sec - sec, at = BP.segAt(R, el);
+      if (el > 0 && at.seg.start === el) { this.enter(at.seg, R.segs[at.i - 1], sec); return; }
+      var left = at.seg.start + at.seg.sec - el;
+      if (S.tickSec > 0 && this.intense(at.next) && left >= 1 && left <= 5 && sec > S.tickSec + 1) Sound.play('tick');
+    },
+    enter: function (seg, prev, sec) {
+      var snd = seg.type === 'max' ? 'r_horn' : seg.type === 'hard' || this.intense(prev) ? 'r_whistle' : 'ding';
+      var d = Sound.play(snd);
+      if (sec <= 6) return;
+      var fresh = !this.spoke[seg.task], again = this.intense(seg) && seg.sec >= 10 && now() - this.lastAt > 25000;
+      if (!fresh && !again) return;
+      var ids = ['bag_' + seg.task];
+      if (this.intense(seg) && fresh && PH.WARN.indexOf(seg.sec) >= 0) ids.push('warn_' + seg.sec);
+      this.spoke[seg.task] = 1; this.lastAt = now();
+      Voice.later(d + 150, ids);
+    }
+  };
+
   /* ================= Таймер ================= */
   var Timer = {
     phase: 'idle', round: 0, paused: false,
@@ -807,8 +854,8 @@
     tickTimer: null,
 
     phaseLen: function (p) {
-      if (p === 'prep') return S.prepSec; if (p === 'round') return S.roundSec;
-      if (p === 'rest') return S.restSec; return 0;
+      if (p === 'prep') return S.prepSec; if (p === 'round') return Plan.roundSec(this.round);
+      if (p === 'rest') return Plan.restSec(); return 0;
     },
     remaining: function () { return this.paused ? this.left : Math.max(0, this.endAt - now()); },
     running: function () { return this.phase === 'prep' || this.phase === 'round' || this.phase === 'rest'; },
@@ -835,7 +882,7 @@
     next: function (carry, silent) {
       if (this.phase === 'prep') return this.enter('round', carry, silent);
       if (this.phase === 'round') {
-        if (this.round >= S.rounds) return this.enter('done', 0, silent);
+        if (this.round >= Plan.rounds()) return this.enter('done', 0, silent);
         return this.enter('rest', carry, silent);
       }
       if (this.phase === 'rest') { this.round++; return this.enter('round', carry, silent); }
@@ -870,14 +917,14 @@
       UI.render(true);
     },
 
-    isLast: function () { return this.round >= S.rounds; },
+    isLast: function () { return this.round >= Plan.rounds(); },
     announce: function (p) {
-      var r = this.round, total = S.rounds;
+      var r = this.round, total = Plan.rounds();
       if (p === 'prep') {
         Voice.later(400, ['prep'], L('say.prep', { rounds: L('n.rounds', { n: total }) }));
       } else if (p === 'round') {
         var id = total > 1 && r === total ? 'last_round' : (total > 1 && r <= PH.MAX_ROUNDS ? 'round_' + r : 'box');
-        Voice.later(Sound.play(S.sndStart) + 250, [id]);
+        Voice.later(Sound.play(S.sndStart) + 250, Plan.bag() ? [id].concat(Coach.roundIds(r)) : [id]);
       } else if (p === 'rest') {
         var left = total - r;
         Voice.later(Sound.play(S.sndEnd) + 250, ['stop_rest', left === 1 ? 'left_1' : 'left_' + Math.min(left, PH.MAX_ROUNDS)]);
@@ -911,19 +958,22 @@
     },
     // Голос — только важное: «10 секунд» с сигналом и счёт 5…1 (в раунде и перед раундом), остальное — звуки.
     onSecond: function (sec) {
-      var p = this.phase, w = p === 'round' ? S.warnSec : 10;
+      var p = this.phase, bag = p === 'round' && Plan.bag();
+      // На груше внутри раунда говорит тренер; свой сигнал «перед концом» и «половина» не нужны.
+      var w = bag ? 0 : p === 'round' ? S.warnSec : 10;
+      if (bag) Coach.onSecond(sec);
       if (w > 0 && sec === w && this.dur > (w + 2) * 1000) {
         var d = Sound.play(S.sndWarn);
         if (PH.WARN.indexOf(w) >= 0) Voice.later(d + 120, ['warn_' + w]);
       }
-      if (p === 'round' && S.halfVoice && this.dur >= 60000 && sec === Math.round(this.dur / 2000) && sec > w + 2) {
+      if (p === 'round' && !bag && S.halfVoice && this.dur >= 60000 && sec === Math.round(this.dur / 2000) && sec > w + 2) {
         Sound.play('beepHigh');
         Voice.later(280, ['half']);
       }
       var countFrom = Math.min(5, Math.ceil(this.dur / 1000) - 1);
       // Тиканье последних секунд (владелец: «чтобы слышать, что конец близко»). Не в ту же секунду, что сигнал «перед концом».
       var tick = S.tickSec > 0 && sec >= 1 && sec <= S.tickSec && sec !== w && this.dur > (S.tickSec + 2) * 1000;
-      if (S.countVoice && S.voice && sec >= 1 && sec <= countFrom && sec < w) { Voice.speak(['cnt_' + sec]); if (tick) Sound.play('tick'); }
+      if (S.countVoice && S.voice && sec >= 1 && sec <= countFrom && (bag || sec < w)) { Voice.speak(['cnt_' + sec]); if (tick) Sound.play('tick'); }
       else if (sec >= 1 && sec <= 3) Sound.play(p === 'round' ? 'beep' : 'beepHigh');
       else if (tick) Sound.play('tick');
     }
@@ -1066,7 +1116,9 @@
       var cmd = P.parseCommand(text);
       var cfg = P.parseWorkout(text);
       if (Object.keys(cfg).length && (Timer.phase === 'idle' || Timer.phase === 'done' || Timer.paused || fromOnce)) {
-        Object.assign(S, cfg); save();
+        Object.assign(S, cfg);
+        if (cfg.rounds || cfg.roundSec || cfg.restSec) S.mode = 'spar'; // назвал раунды голосом — значит, спарринг
+        save(); Plan.refresh();
         UI.syncSettings(); UI.render(true);
         var msg = App.describe();
         $('voiceResult').textContent = msg;
@@ -1260,7 +1312,7 @@
       var w = warn && !T.paused ? '1' : '0';
       if (b.dataset.warn !== w) b.dataset.warn = w;
 
-      var txt = fmt(T.running() ? sec : S.roundSec);
+      var txt = fmt(T.running() ? sec : Plan.roundSec(1));
       if (txt !== this.lastClock) {
         this.lastClock = txt;
         var clock = $('clock');
@@ -1270,7 +1322,7 @@
         if (T.running() && !T.paused && sec >= 1 && sec <= 3) this.animate(clock, 'beat');
       }
 
-      var key = [T.phase, T.round, T.paused, T.epoch, S.rounds, S.roundSec, S.restSec, S.prepSec, S.stompMode, S.stompPattern].join('|');
+      var key = [T.phase, T.round, T.paused, T.epoch, S.rounds, S.roundSec, S.restSec, S.prepSec, S.stompMode, S.stompPattern, S.mode, S.bagGoal, S.bagLevel].join('|');
       if (!force && key === this.lastKey) return;
       this.lastKey = key;
 
@@ -1289,15 +1341,17 @@
       // Сверху слева — что сейчас, справа — какой раунд (в отдыхе — какой следующий).
       var labels = { idle: '', prep: L('ph.prep'), round: L('ph.round'), rest: L('ph.rest'), done: '' };
       $('phaseLabel').textContent = T.paused ? L('ph.pause') : labels[T.phase];
-      var last = S.rounds > 1, rl = '';
-      if (T.phase === 'prep') rl = L('round.n', { n: 1, total: S.rounds });
-      else if (T.phase === 'round') rl = last && T.isLast() ? L('round.last') : L('round.n', { n: T.round, total: S.rounds });
-      else if (T.phase === 'rest') rl = '<small>' + L('round.next') + '</small>' + (last && T.round + 1 === S.rounds ? L('round.nextLast') : L('round.n', { n: T.round + 1, total: S.rounds }));
+      var NR = Plan.rounds(), last = NR > 1, rl = '';
+      if (T.phase === 'prep') rl = L('round.n', { n: 1, total: NR });
+      else if (T.phase === 'round') rl = last && T.isLast() ? L('round.last') : L('round.n', { n: T.round, total: NR });
+      else if (T.phase === 'rest') rl = '<small>' + L('round.next') + '</small>' + (last && T.round + 1 === NR ? L('round.nextLast') : L('round.n', { n: T.round + 1, total: NR }));
       $('roundLabel').innerHTML = rl;
 
       this.syncWheels();
-      $('summaryText').textContent = L('summary', { rounds: L('n.rounds', { n: S.rounds }), len: fmt(S.roundSec), min: Math.round(S.rounds * S.roundSec / 60) });
-      $('planText').textContent = S.rounds + ' × ' + fmt(S.roundSec) + ' · ' + (S.restSec ? L('plan.rest', { t: fmt(S.restSec) }) : L('plan.noRest'));
+      $('summaryText').textContent = L('summary', { rounds: L('n.rounds', { n: NR }), len: fmt(Plan.roundSec(1)), min: Math.round(NR * Plan.roundSec(1) / 60) });
+      $('planText').textContent = Plan.bag()
+        ? L('plan.bag', { goal: L('goal.' + S.bagGoal), level: L('level.' + S.bagLevel), min: Math.round((S.prepSec + Plan.total()) / 60) })
+        : S.rounds + ' × ' + fmt(S.roundSec) + ' · ' + (S.restSec ? L('plan.rest', { t: fmt(S.restSec) }) : L('plan.noRest'));
 
       $('skipText').textContent = this.skipTarget();
       this.resetConfirm(false);
@@ -1315,9 +1369,9 @@
       var T = Timer, nr = T.phase === 'prep' ? 1 : T.round + 1;
       if (T.phase === 'round') {
         if (T.isLast()) return L('skip.finish');
-        if (S.restSec > 0) return L('skip.rest');
+        if (Plan.restSec() > 0) return L('skip.rest');
       }
-      return nr === S.rounds && S.rounds > 1 ? L('skip.last') : L('skip.round', { n: nr });
+      return nr === Plan.rounds() && Plan.rounds() > 1 ? L('skip.last') : L('skip.round', { n: nr });
     },
     // Сброс на паузе — со второго касания: случайно задел — тренировка не пропала.
     resetTimer: null,
@@ -1359,7 +1413,7 @@
       } else if (T.phase === 'done') {
         hint = live ? L('ready.doneStomp', { how: how }) : L('ready.done');
       } else {
-        var total = S.prepSec + S.rounds * S.roundSec + Math.max(0, S.rounds - 1) * S.restSec;
+        var total = S.prepSec + Plan.total();
         hint = live ? L('ready.tapStomp', { how: how }) : L('ready.tap');
         sub = L('total', { min: Math.max(1, Math.round(total / 60)) });
       }
@@ -1370,7 +1424,7 @@
       $('idleDot').classList.toggle('on', live);
 
       $('pauseHint').textContent = live ? L('pause.stomp', { how: how }) : L('pause.tap');
-      $('dimText').textContent = S.rounds + ' × ' + fmt(S.roundSec);
+      $('dimText').textContent = Plan.rounds() + ' × ' + fmt(Plan.roundSec(1));
       $('dimHint').textContent = live ? L('st.start', { how: how }) : L('dim.tap');
     },
 
@@ -1470,6 +1524,21 @@
       document.querySelectorAll('.sheet-nav .tab').forEach(function (b) {
         b.onclick = function () { self.showTab(b.dataset.tab); };
       });
+      // Режим: спарринг (свои раунды) или груша (готовая программа тренера по цели и уровню).
+      var bagChanged = function () { save(); Plan.refresh(); self.syncSettings(); self.render(true); };
+      $('modeSeg').querySelectorAll('button').forEach(function (b) {
+        b.onclick = function () { S.mode = b.dataset.v; bagChanged(); };
+      });
+      BP.GOALS.forEach(function (g) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'opt goal'; b.dataset.v = g; b.setAttribute('role', 'radio');
+        b.innerHTML = '<b data-i18n="goal.' + g + '"></b><span data-i18n="gsub.' + g + '"></span>';
+        b.onclick = function () { S.bagGoal = g; bagChanged(); };
+        $('goalOpts').appendChild(b);
+      });
+      $('levelSeg').querySelectorAll('button').forEach(function (b) {
+        b.onclick = function () { S.bagLevel = b.dataset.v; bagChanged(); };
+      });
 
       $('optVoice').onchange = function () { S.voice = this.checked; save(); self.syncSettings(); if (S.voice) Voice.speak(['round_1']); };
       $('optVolume').oninput = function () { S.volume = +this.value; Sound.setVolume(S.volume); save(); };
@@ -1560,6 +1629,18 @@
       $('commandsSection').hidden = !Listen.supported;
       $('voiceOpts').hidden = !S.voice;
       $('stompOpts').hidden = S.stompMode === 'off';
+      var bag = S.mode === 'bag';
+      $('sparOpts').hidden = bag; $('bagOpts').hidden = !bag;
+      $('modeSeg').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.mode); });
+      $('levelSeg').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.bagLevel); });
+      document.querySelectorAll('#goalOpts .opt').forEach(function (b) { var on = b.dataset.v === S.bagGoal; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+      if (bag && Plan.prog) {
+        var P = Plan.prog, lens = P.rounds.map(function (r) { return r.sec; });
+        var mn = Math.min.apply(null, lens), mx = Math.max.apply(null, lens);
+        $('bagDesc').textContent = L('bag.desc', { rounds: P.rounds.length, len: mn === mx ? fmt(mn) : fmt(mn) + '–' + fmt(mx),
+          rest: fmt(P.rest), min: Math.round(P.total / 60) });
+        this.renderBagPlan(P);
+      }
       var during = App.stompDuring();
       $('stompDuring').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === during); });
       $('stompDuringHint').textContent = {
@@ -1572,6 +1653,28 @@
       $('stompModeHint').textContent = L('smh.' + S.stompMode);
       this.syncCal();
       this.voiceStatus();
+    },
+    // Программа груши по раундам: полоса отрезков (цвет = темп, как его слышно) и задание раунда.
+    renderBagPlan: function (P) {
+      var box = $('bagPlan'), lang = S.lang === 'en' ? 'en' : 'ru';
+      var kind = function (t) { return t === 'max' ? 'max' : t === 'hard' ? 'hard' : 'calm'; };
+      var EN = { 'уклон': 'slip', 'нырок': 'roll', 'шаг': 'step' }, used = {};
+      box.textContent = '';
+      P.rounds.forEach(function (R, i) {
+        var li = document.createElement('li'), bar = document.createElement('div'), t = document.createElement('span');
+        var c = BP.COMBOS[R.theme] || BP.CUES[R.theme] || { ru: R.theme, en: R.theme }, nums = c.nums || '';
+        if (lang === 'en') nums = nums.replace(/[а-я]+/g, function (w) { return EN[w] || w; });
+        bar.className = 'segs';
+        R.segs.forEach(function (sg) {
+          var x = document.createElement('i'); x.className = 'k-' + kind(sg.type); x.style.flexGrow = sg.sec; bar.appendChild(x);
+          used[kind(sg.type)] = 1;
+        });
+        t.textContent = (i === 0 ? L('bag.warm') + ' → ' : '') + c[lang] + ' ';
+        if (nums) { var n = document.createElement('small'); n.textContent = nums; t.appendChild(n); }
+        li.appendChild(bar); li.appendChild(t); box.appendChild(li);
+      });
+      // В легенде — только темпы, которые есть в программе (у новичков нет «максимума»).
+      document.querySelectorAll('.bag-legend span').forEach(function (x) { x.hidden = !used[x.className.slice(2)]; });
     },
     syncPresets: function () {
       document.querySelectorAll('.preset').forEach(function (b) {
@@ -1694,6 +1797,7 @@
   Voice.loadSystem();
   Sound.loadSamples();
   Clips.load(curVoice());
+  Plan.refresh();
   UI.syncSettings();
   UI.render(true);
   // В приложении звук разрешён без касания — таймер сразу готов, топот слышно с первой секунды.
@@ -1711,5 +1815,5 @@
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
 
-  window.BoxTimer = { Timer: Timer, Stomp: Stomp, Sound: Sound, Voice: Voice, Clips: Clips, App: App, Cal: Cal, Wake: Wake, S: S };
+  window.BoxTimer = { Timer: Timer, Plan: Plan, Coach: Coach, Stomp: Stomp, Sound: Sound, Voice: Voice, Clips: Clips, App: App, Cal: Cal, Wake: Wake, S: S };
 })();

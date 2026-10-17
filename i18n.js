@@ -6,7 +6,7 @@
   var DICT = {
     ru: {
       'app.title': 'Боксёрский таймер',
-      'preset.spar': 'Спарринг', 'preset.pro': 'Проф', 'preset.amateur': 'Любители', 'preset.bag': 'Мешок', 'preset.tabata': 'Табата',
+      'preset.spar': 'Спарринг', 'preset.pro': 'Проф', 'preset.amateur': 'Любители', 'preset.tabata': 'Табата',
       'presets.aria': 'Готовые тренировки',
       'chip.voice': 'Голосом', 'settings': 'Настройки',
 
@@ -28,6 +28,16 @@
       'total': 'тренировка ≈ {min} мин',
       'st.start': '{how} — старт', 'st.deaf': 'топот не слышно — проверь разрешения',
       'plan.rest': 'отдых {t}', 'plan.noRest': 'без отдыха',
+      'mode.spar': 'Спарринг', 'mode.bag': 'Груша', 'bag.goal': 'Что качаем', 'bag.level': 'Уровень',
+      'goal.power': 'Сила', 'goal.endurance': 'Выносливость', 'goal.speed': 'Скорость', 'goal.burst': 'Взрывная', 'goal.technique': 'Техника', 'goal.cardio': 'Кардио',
+      'gsub.power': 'удар в полную силу', 'gsub.endurance': 'держать темп весь бой', 'gsub.speed': 'быстрые руки', 'gsub.burst': 'спокойно — и взрыв',
+      'gsub.technique': 'серии, защита, ноги', 'gsub.cardio': 'плотные интервалы',
+      'level.beginner': 'Новичок', 'level.amateur': 'Любитель', 'level.advanced': 'Продвинутый', 'level.pro': 'Профи',
+      'plan.bag': '{goal} · {level} · {min} мин',
+      'bag.desc': '{rounds} × {len} · отдых {rest} · {min} мин',
+      'bag.plan': 'Программа', 'bag.warm': 'Разминка',
+      'leg.calm': 'спокойно · колокол', 'leg.hard': 'сильно · свисток', 'leg.max': 'максимум · горн',
+      'bag.hint': 'Смотреть на телефон не нужно: тренер голосом говорит, что бить, смену темпа слышно по звуку, перед ускорением тикают часы.',
       'ready.unlock': 'Коснись экрана — включить звук', 'ready.unlockStomp': 'Коснись экрана — включить звук и топот',
       'ready.tap': 'Коснись экрана — старт', 'ready.tapStomp': 'Коснись или {how} — старт',
       'ready.done': 'Коснись — к началу', 'ready.doneStomp': '{how} — ещё раз · коснись — к началу',
@@ -113,7 +123,7 @@
 
     en: {
       'app.title': 'Boxing Timer',
-      'preset.spar': 'Sparring', 'preset.pro': 'Pro', 'preset.amateur': 'Amateur', 'preset.bag': 'Heavy bag', 'preset.tabata': 'Tabata',
+      'preset.spar': 'Sparring', 'preset.pro': 'Pro', 'preset.amateur': 'Amateur', 'preset.tabata': 'Tabata',
       'presets.aria': 'Workout presets',
       'chip.voice': 'Voice', 'settings': 'Settings',
 
@@ -135,6 +145,16 @@
       'total': 'workout ≈ {min} min',
       'st.start': '{how} to start', 'st.deaf': 'stomp can’t hear you — check permissions',
       'plan.rest': 'rest {t}', 'plan.noRest': 'no rest',
+      'mode.spar': 'Sparring', 'mode.bag': 'Heavy bag', 'bag.goal': 'What to train', 'bag.level': 'Level',
+      'goal.power': 'Power', 'goal.endurance': 'Endurance', 'goal.speed': 'Speed', 'goal.burst': 'Explosive', 'goal.technique': 'Technique', 'goal.cardio': 'Cardio',
+      'gsub.power': 'full-power shots', 'gsub.endurance': 'hold the pace all fight', 'gsub.speed': 'fast hands', 'gsub.burst': 'steady, then explode',
+      'gsub.technique': 'combos, defense, footwork', 'gsub.cardio': 'dense intervals',
+      'level.beginner': 'Beginner', 'level.amateur': 'Amateur', 'level.advanced': 'Advanced', 'level.pro': 'Pro',
+      'plan.bag': '{goal} · {level} · {min} min',
+      'bag.desc': '{rounds} × {len} · rest {rest} · {min} min',
+      'bag.plan': 'Program', 'bag.warm': 'Warm-up',
+      'leg.calm': 'steady · bell', 'leg.hard': 'hard · whistle', 'leg.max': 'all out · horn',
+      'bag.hint': 'No need to look at the phone: the coach tells you what to throw, pace changes are heard as sounds, a clock ticks before each push.',
       'ready.unlock': 'Tap the screen to turn on sound', 'ready.unlockStomp': 'Tap the screen to turn on sound and stomp',
       'ready.tap': 'Tap the screen to start', 'ready.tapStomp': 'Tap or {how} to start',
       'ready.done': 'Tap to go back', 'ready.doneStomp': '{how} to go again · tap to go back',
