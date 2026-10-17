@@ -50,7 +50,8 @@
 Тот же сайт внутри нативной обёртки — ради того, что веб не может: тик Taptic Engine на каждое значение колеса
 (`@capacitor/haptics`, `Haptic.native`), всегда горизонтально (Info.plist), экран не гаснет и звук в фоне/при беззвучном
 (AppDelegate: `isIdleTimerDisabled`, `AVAudioSession .playback + mixWithOthers`, `UIBackgroundModes audio`), без строки
-состояния и полоски «Домой» (`TimerViewController` в SceneDelegate.swift), звук включается без касания.
+состояния (`UIStatusBarHidden` — Capacitor читает сам), звук включается без касания. Свойства `CAPBridgeViewController`
+из пакета Capacitor не `open` — подкласс с override (`prefersStatusBarHidden`, `prefersHomeIndicatorAutoHidden`) не собирается.
 - В `app.js` всё нативное — за флагом `NATIVE` (`Capacitor.isNativePlatform()`); сайт без него работает как раньше.
 - Сборка: сайт остаётся без сборки; `tools/www.sh` копирует нужные файлы в `www/` (в .gitignore), `npm run sync` → `cap sync ios`.
 - `.github/workflows/ios.yml` (macOS-раннер) собирает .ipa **без подписи** и на main выкладывает GitHub Release `app-1.0.N`
