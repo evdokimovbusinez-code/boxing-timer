@@ -9,8 +9,9 @@
   /* ================= Настройки ================= */
   var DEFAULTS = {
     rounds: 10, roundSec: 120, restSec: 60, prepSec: 10, warnSec: 10,
-    voice: true, countVoice: false, voiceURI: '', volume: 1,
+    voice: true, countVoice: false, halfVoice: false, voiceURI: '', volume: 1,
     stompMode: 'mic', stompPattern: 'double', stompInRound: false, sens: 0.55,
+    calMic: null, calMotion: null,
     commands: false
   };
   var PRESETS = [
@@ -129,8 +130,11 @@
 
   /* ================= Голос (озвучка) ================= */
   var Voice = {
-    voice: null, speaking: false, quietUntil: 0, voices: [],
+    voice: null, speaking: false, speakingUntil: 0, quietUntil: 0, voices: [],
+    timer: null, keep: [],
     supported: 'speechSynthesis' in window,
+    // onend на iOS иногда не приходит — не даём «говорит» залипнуть навсегда.
+    isSpeaking: function () { return this.speaking && now() < this.speakingUntil; },
     load: function () {
       if (!this.supported) return;
       var all = speechSynthesis.getVoices() || [];
@@ -152,14 +156,18 @@
       opts = opts || {};
       var self = this;
       var go = function () {
+        self.timer = null;
         var u = new SpeechSynthesisUtterance(text);
         u.lang = 'ru-RU';
         if (self.voice) u.voice = self.voice;
         u.rate = opts.rate || 1.05; u.pitch = 1; u.volume = 1;
-        var est = 400 + text.length * 70;
+        var est = 400 + text.length * 75 / (u.rate || 1);
+        self.speaking = true;
+        self.speakingUntil = now() + est + 1500;
         self.quietUntil = now() + est + 700;
         Stomp.muteFor(est + 400);
-        u.onstart = function () { self.speaking = true; };
+        // Держим ссылку: иначе Safari может собрать фразу сборщиком мусора и onend не придёт.
+        self.keep.push(u); if (self.keep.length > 6) self.keep.shift();
         u.onend = u.onerror = function () {
           self.speaking = false;
           self.quietUntil = now() + 700;
@@ -167,20 +175,32 @@
         };
         speechSynthesis.speak(u);
       };
+      // Новая фраза отменяет ещё не сказанную — без этого две фразы подряд звучали обе.
+      if (this.timer) { clearTimeout(this.timer); this.timer = null; }
       if (opts.queue) { go(); return; }
-      if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); setTimeout(go, 70); }
+      if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); this.timer = setTimeout(go, 80); }
       else go();
     },
-    later: function (ms, text, opts) { var self = this; setTimeout(function () { if (Timer.phase !== 'idle') self.say(text, opts); }, ms); },
-    cancel: function () { if (this.supported) speechSynthesis.cancel(); }
+    // Отложенная фраза звучит, только если за это время ничего не поменялось (пауза, пропуск, сброс).
+    later: function (ms, text, opts) {
+      var self = this, ep = Timer.epoch;
+      setTimeout(function () { if (Timer.epoch === ep && !Timer.paused && Timer.phase !== 'idle') self.say(text, opts); }, ms);
+    },
+    cancel: function () {
+      if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+      if (this.supported) speechSynthesis.cancel();
+      this.speaking = false;
+    }
   };
   if (Voice.supported) speechSynthesis.onvoiceschanged = function () { Voice.load(); };
 
   /* ================= Экран не гаснет ================= */
+  // Держим экран всё время, пока приложение открыто: если экран погаснет в ожидании,
+  // iPhone усыпит страницу и старт топотом перестанет работать.
   var Wake = {
     lock: null,
     request: function () {
-      if (!('wakeLock' in navigator) || this.lock) return;
+      if (!('wakeLock' in navigator) || this.lock || document.visibilityState !== 'visible') return;
       var self = this;
       navigator.wakeLock.request('screen').then(function (l) {
         self.lock = l; l.addEventListener('release', function () { self.lock = null; });
@@ -190,17 +210,21 @@
   };
 
   /* ================= Детектор топота ================= */
+  var D = window.BoxDetect;
   var Stomp = {
-    stream: null, analyser: null, buf: null, timer: null,
+    stream: null, analyser: null, buf: null, timer: null, starting: null,
     motionOn: false, mPrev: null,
-    floor: 0.01, armed: true, lastRaw: 0, pending: 0, muteUntil: 0,
-    level: 0, thr: 1, mLevel: 0, mThr: 1,
-    lastMic: 0, lastMotion: 0, rawCount: 0,
-    paused: false,
+    micDet: new D.OnsetDetector({ floor0: 0.01, dt: 12, refractory: 120 }),
+    motDet: new D.OnsetDetector({ floor0: 0.05, dt: 16, refractory: 140, minFloor: 0.005 }),
+    dbl: new D.DoubleTap(90, 900),
+    muteUntil: 0, level: 0, thr: 1, mLevel: 0, mThr: 1,
+    lastMic: -1e9, lastMotion: -1e9,
+    paused: false, cal: null, calTimer: null,
 
     muteFor: function (ms) { this.muteUntil = Math.max(this.muteUntil, now() + ms); },
     needsMic: function () { return S.stompMode === 'mic' || S.stompMode === 'both'; },
     needsMotion: function () { return S.stompMode === 'motion' || S.stompMode === 'both'; },
+    micLive: function () { return !!(this.stream && this.stream.getAudioTracks().some(function (t) { return t.readyState === 'live'; })); },
 
     // Вызывать внутри обработчика касания (iOS требует жест для разрешений).
     apply: function () {
@@ -213,29 +237,34 @@
 
     startMic: function () {
       var self = this;
-      if (this.stream && this.stream.getAudioTracks().some(function (t) { return t.readyState === 'live'; })) return Promise.resolve();
+      if (this.micLive() && this.analyser) return Promise.resolve();
+      if (this.starting) return this.starting; // защита от двойного getUserMedia
+      if (this.stream) this.stopMic();
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         UI.toast('Микрофон недоступен в этом браузере'); return Promise.resolve();
       }
       Sound.init();
       try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {}
-      return navigator.mediaDevices.getUserMedia({
+      this.starting = navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       }).then(function (stream) {
+        if (!self.needsMic() || self.paused) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
         self.stream = stream;
         var c = Sound.ctx;
         var src = c.createMediaStreamSource(stream);
-        var lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 280; lp.Q.value = 0.7;
+        // Топот — низкий глухой звук; хлопки и щелчки перчаток отсекаем.
+        var lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400; lp.Q.value = 0.7;
         self.analyser = c.createAnalyser(); self.analyser.fftSize = 1024;
         self.buf = new Float32Array(self.analyser.fftSize);
         src.connect(lp); lp.connect(self.analyser);
-        self.floor = 0.01;
+        self.micDet.reset(0.01);
         clearInterval(self.timer);
         self.timer = setInterval(function () { self.pollMic(); }, 12);
         stream.getAudioTracks()[0].addEventListener('ended', function () { self.stopMic(); UI.renderChips(); });
       }).catch(function () {
-        UI.toast('Нет доступа к микрофону — включи в Настройках iPhone или выбери «Датчик»');
-      });
+        UI.toast('Нет доступа к микрофону — разреши в Настройках iPhone или выбери «Датчик»');
+      }).then(function () { self.starting = null; });
+      return this.starting;
     },
     stopMic: function () {
       clearInterval(this.timer); this.timer = null;
@@ -243,23 +272,23 @@
       this.stream = null; this.analyser = null;
       try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
     },
+    micThr: function (t) {
+      return D.threshold({ sens: S.sens, cal: S.calMic, floor: this.micDet.floor, second: this.dbl.waiting(t), absHi: 0.12, absLo: 0.012 });
+    },
+    motThr: function (t) {
+      return D.threshold({ sens: S.sens, cal: S.calMotion, floor: this.motDet.floor, second: this.dbl.waiting(t), absHi: 3.2, absLo: 0.18 });
+    },
     pollMic: function () {
       if (!this.analyser) return;
       this.analyser.getFloatTimeDomainData(this.buf);
       var peak = 0;
       for (var i = 0; i < this.buf.length; i++) { var a = Math.abs(this.buf[i]); if (a > peak) peak = a; }
-      var t = now();
-      var k = lerp(14, 3.2, S.sens), absMin = lerp(0.12, 0.012, S.sens);
-      if (peak < this.floor * 2.5) this.floor = this.floor * 0.997 + peak * 0.003;
-      this.floor = Math.max(this.floor, 0.0005);
-      this.thr = Math.max(absMin, this.floor * k);
-      this.level = peak;
-      if (this.armed && peak > this.thr && t > this.muteUntil && t - this.lastMic > 110) {
-        this.armed = false; this.lastMic = t;
-        this.raw('mic', t);
-      } else if (!this.armed && peak < this.thr * 0.6) {
-        this.armed = true;
-      }
+      var t = now(), prev = this.micDet.slow;
+      var thr = this.micThr(t);
+      this.level = peak; this.thr = thr;
+      var hit = this.micDet.push(peak, t, thr);
+      if (this.cal) { this.cal.mic.push(peak, t, this.micDet.floor, prev); return; }
+      if (hit && t > this.muteUntil) { this.lastMic = t; this.raw('mic', t); }
     },
 
     startMotion: function () {
@@ -267,7 +296,8 @@
       if (this.motionOn) return Promise.resolve();
       var begin = function () {
         window.addEventListener('devicemotion', self.onMotion);
-        self.motionOn = true;
+        self.motionOn = true; self.mPrev = null;
+        self.motDet.reset(0.05);
       };
       if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
         return DeviceMotionEvent.requestPermission().then(function (r) {
@@ -289,30 +319,54 @@
       var t = now();
       if (self.mPrev) {
         var d = Math.hypot(a.x - self.mPrev.x, a.y - self.mPrev.y, a.z - self.mPrev.z);
-        self.mLevel = d;
-        self.mThr = lerp(3.2, 0.18, S.sens);
-        if (d > self.mThr && t > self.muteUntil && t - self.lastMotion > 140) {
-          self.lastMotion = t;
-          self.raw('motion', t);
-        }
+        var prev = self.motDet.slow, thr = self.motThr(t);
+        self.mLevel = d; self.mThr = thr;
+        var hit = self.motDet.push(d, t, thr);
+        if (self.cal) self.cal.motion.push(d, t, self.motDet.floor, prev);
+        else if (hit && t > self.muteUntil) { self.lastMotion = t; self.raw('motion', t); }
       }
       self.mPrev = { x: a.x, y: a.y, z: a.z };
     },
 
-    // Сырой удар от источника → правило «оба» → шаблон одиночный/двойной.
+    // Сырой удар → правило «оба» → одиночный/двойной.
     raw: function (src, t) {
       if (S.stompMode === 'both') {
         var other = src === 'mic' ? this.lastMotion : this.lastMic;
         if (t - other > 160) return;
-        this.lastMic = this.lastMotion = t;
+        this.lastMic = this.lastMotion = -1e9;
       }
-      this.rawCount++;
       UI.onRawHit();
       if (S.stompPattern === 'single') { this.fire(); return; }
-      if (this.pending && t - this.pending >= 100 && t - this.pending <= 800) { this.pending = 0; this.fire(); }
-      else this.pending = t;
+      var r = this.dbl.push(t);
+      if (r === 'double') this.fire();
+      else if (r === 'first') UI.onFirstHit();
     },
     fire: function () { App.onStomp(); },
+
+    /* ---- Автокалибровка: человек топает 4 раза, порог ставится под его топот ---- */
+    calibrate: function (onDone) {
+      var self = this;
+      this.dbl.clear();
+      this.cal = { start: now(), mic: new D.PeakCollector(4), motion: new D.PeakCollector(4), onDone: onDone };
+      clearTimeout(this.calTimer);
+      this.calTimer = setTimeout(function () { self.finishCal(); }, 8000);
+    },
+    calCount: function () {
+      if (!this.cal) return 0;
+      var n = 0;
+      if (this.needsMic()) n = Math.max(n, this.cal.mic.events.length);
+      if (this.needsMotion()) n = Math.max(n, this.cal.motion.events.length);
+      return n;
+    },
+    finishCal: function () {
+      var c = this.cal; if (!c) return;
+      this.cal = null; clearTimeout(this.calTimer);
+      var res = {};
+      if (this.needsMic()) res.mic = c.mic.level();
+      if (this.needsMotion()) res.motion = c.motion.level();
+      this.dbl.clear();
+      c.onDone(res);
+    },
 
     listening: function () { return (this.needsMic() && !!this.analyser) || (this.needsMotion() && this.motionOn); }
   };
@@ -321,6 +375,7 @@
   var Timer = {
     phase: 'idle', round: 0, paused: false,
     endAt: 0, left: 0, dur: 0, lastSec: null,
+    epoch: 0, // меняется при любом переходе — отложенные фразы старой фазы не звучат
 
     phaseLen: function (p) {
       if (p === 'prep') return S.prepSec; if (p === 'round') return S.roundSec;
@@ -337,12 +392,12 @@
     },
     enter: function (p, carry, silent) {
       this.phase = p; this.paused = false; carry = carry || 0;
+      this.epoch++;
       this.dur = this.phaseLen(p) * 1000;
       this.endAt = now() + this.dur - carry;
       this.lastSec = Math.ceil((this.dur - carry) / 1000);
       if (p === 'rest' && this.dur <= 0) { this.next(carry, silent); return; }
       if (!silent) this.announce(p);
-      if (p === 'done') Wake.release();
       UI.render(true);
     },
     next: function (carry, silent) {
@@ -355,13 +410,13 @@
     },
     pause: function () {
       if (!this.running() || this.paused) return;
-      this.left = this.remaining(); this.paused = true;
+      this.left = this.remaining(); this.paused = true; this.epoch++;
       Voice.say('Пауза');
       UI.render(true);
     },
     resume: function () {
       if (!this.paused) return;
-      this.endAt = now() + this.left; this.paused = false;
+      this.endAt = now() + this.left; this.paused = false; this.epoch++;
       Sound.unlock(); Wake.request();
       Voice.say('Продолжаем');
       UI.render(true);
@@ -372,8 +427,8 @@
       this.next(0, false);
     },
     reset: function () {
-      this.phase = 'idle'; this.round = 0; this.paused = false;
-      Voice.cancel(); Wake.release();
+      this.phase = 'idle'; this.round = 0; this.paused = false; this.epoch++;
+      Voice.cancel();
       UI.render(true);
     },
 
@@ -384,7 +439,8 @@
         Voice.say('Приготовиться. ' + total + ' ' + P.plural(total, ['раунд', 'раунда', 'раундов']) + ' по ' + P.durWords(S.roundSec).replace(/^минута$/, 'минуте'));
       } else if (p === 'round') {
         Sound.play('bellStart');
-        Voice.later(1000, total > 1 && r === total ? 'Последний раунд. Бокс!' : 'Бокс!');
+        var call = total > 1 && r === total ? 'Последний раунд. Бокс!' : (total > 1 ? 'Раунд ' + r + '. Бокс!' : 'Бокс!');
+        Voice.later(1000, call);
       } else if (p === 'rest') {
         Sound.play('gongEnd');
         var left = total - r;
@@ -420,6 +476,10 @@
         if (w > 0 && sec === w && this.dur > (w + 2) * 1000) {
           Sound.play('clapper');
           Voice.later(450, w + ' ' + P.plural(w, ['секунда', 'секунды', 'секунд']));
+        }
+        if (S.halfVoice && this.dur >= 60000 && sec === Math.round(this.dur / 2000) && sec > w + 2) {
+          Sound.play('beepHigh');
+          Voice.later(300, 'Половина');
         }
         if (S.countVoice && sec >= 1 && sec <= 5 && sec < w) {
           Voice.say(['', 'один', 'два', 'три', 'четыре', 'пять'][sec], { rate: 1.25 });
@@ -489,7 +549,7 @@
       r.onresult = function (e) {
         var res = e.results[e.results.length - 1];
         if (!res.isFinal) return;
-        if (now() < Voice.quietUntil || Voice.speaking) return; // не реагируем на собственный голос
+        if (now() < Voice.quietUntil || Voice.isSpeaking()) return; // не реагируем на собственный голос
         App.handleSpeech(res[0].transcript, false);
       };
       r.onerror = function (e) {
@@ -515,22 +575,38 @@
     unlocked: false,
 
     unlock: function () {
-      Sound.unlock(); Voice.unlock();
+      Sound.unlock(); Voice.unlock(); Wake.request();
       try { if (navigator.audioSession && !Stomp.needsMic()) navigator.audioSession.type = 'playback'; } catch (e) {}
       Voice.load();
       this.unlocked = true;
       $('gate').hidden = true;
+      $('gateText').textContent = 'Нажми один раз — iPhone разрешит звук, голос и датчики для топота.';
       Stomp.apply().then(function () {
         if (S.commands) Listen.startCommands();
       });
       UI.render(true);
     },
 
+    // Звук пропал (iOS усыпил аудио, пока приложение было в фоне) — просим одно касание.
+    regate: function (text) {
+      $('gateText').textContent = text;
+      $('gate').hidden = false;
+    },
+
+    starting: false,
     onStomp: function () {
       if (!$('settings').hidden) { UI.onCalibStomp(); return; }
-      if (!$('voiceLayer').hidden) return;
-      var T = Timer;
-      if (T.phase === 'idle' || T.phase === 'done') { UI.flashStomp(); Sound.play('blip'); Voice.say('Старт'); setTimeout(function () { T.start(); }, 500); return; }
+      if (!$('voiceLayer').hidden || !$('gate').hidden || this.starting) return;
+      var T = Timer, self = this;
+      if (T.phase === 'idle' || T.phase === 'done') {
+        UI.flashStomp(); Sound.play('blip'); Voice.say('Старт');
+        this.starting = true;
+        setTimeout(function () {
+          self.starting = false;
+          if (T.phase === 'idle' || T.phase === 'done') T.start();
+        }, 500);
+        return;
+      }
       if (T.paused) { UI.flashStomp(); T.resume(); return; }
       if (T.phase === 'round' && !S.stompInRound) return;
       UI.flashStomp(); T.pause();
@@ -617,8 +693,12 @@
       pips.innerHTML = html;
 
       var hint = '';
-      if (Stomp.listening() || S.stompMode !== 'off') hint = (S.stompPattern === 'double' ? 'Топни дважды' : 'Топни') + ' — старт и пауза. ';
-            $('idleHint').textContent = hint + (T.phase === 'idle' ? 'Тап по экрану во время раунда — пауза.' : '');
+      if (T.phase === 'idle') {
+        var total = S.prepSec + S.rounds * S.roundSec + Math.max(0, S.rounds - 1) * S.restSec;
+        hint = 'Тренировка ≈ ' + Math.round(total / 60) + ' мин';
+      }
+      if (S.stompMode !== 'off') hint += (hint ? ' · ' : '') + (S.stompPattern === 'double' ? 'топни дважды' : 'топни') + ' — старт';
+      $('idleHint').textContent = hint;
       $('btnStart').lastChild.textContent = T.phase === 'done' ? 'Ещё раз' : 'Старт';
 
       $('pauseLayer').hidden = !T.paused || !$('settings').hidden;
@@ -638,7 +718,15 @@
 
     flashStomp: function () {
       var f = $('stompFlash');
-      f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+      f.classList.remove('on', 'half'); void f.offsetWidth; f.classList.add('on');
+    },
+    // Первый топ из двух: тихая подсказка «понял, жду второй» — без звука, чтобы не заглушить микрофон.
+    onFirstHit: function () {
+      if (!$('settings').hidden) { $('meterCount').textContent = '1-й топ… давай второй'; return; }
+      if (!$('gate').hidden || !$('voiceLayer').hidden) return;
+      if (Timer.phase === 'round' && !S.stompInRound) return;
+      var f = $('stompFlash');
+      f.classList.remove('on', 'half'); void f.offsetWidth; f.classList.add('half');
     },
 
     toastTimer: null,
@@ -657,9 +745,10 @@
       $('pauseLayer').hidden = true;
       this.calibHits = 0;
       $('meterCount').textContent = 'топни — проверим';
-      this.meterLoop();
+      if (!this.meterOn) { this.meterOn = true; this.meterLoop(); }
     },
     closeSettings: function () {
+      if (Stomp.cal) { Stomp.cal = null; clearTimeout(Stomp.calTimer); UI.calEnd(); }
       $('settings').hidden = true;
       this.render(true);
     },
@@ -706,6 +795,9 @@
 
       $('optVoice').onchange = function () { S.voice = this.checked; save(); if (S.voice) Voice.say('Голос включён'); };
       $('optCount').onchange = function () { S.countVoice = this.checked; save(); };
+      $('optHalf').onchange = function () { S.halfVoice = this.checked; save(); };
+      $('btnCal').onclick = function () { UI.calStart(); };
+      $('btnCalReset').onclick = function () { S.calMic = null; S.calMotion = null; save(); UI.syncCal(); UI.toast('Калибровка сброшена'); };
       $('optVoiceName').onchange = function () {
         S.voiceURI = this.value; save(); Voice.load(); Voice.say('Раунд один. Бокс!');
       };
@@ -749,6 +841,7 @@
       });
       $('optVoice').checked = S.voice;
       $('optCount').checked = S.countVoice;
+      $('optHalf').checked = S.halfVoice;
       $('optVolume').value = S.volume;
       $('optStompRound').checked = S.stompInRound;
       $('optSens').value = S.sens;
@@ -766,6 +859,7 @@
         both: 'Срабатывает, только когда удар слышно и чувствуется. Меньше ложных стартов, телефон на полу.'
       };
       $('stompModeHint').textContent = hints[S.stompMode];
+      if (!Stomp.cal) this.syncCal();
       this.fillVoices();
     },
     fillVoices: function () {
@@ -793,16 +887,52 @@
       $('meterCount').textContent = 'Сработало: ' + this.calibHits;
       Sound.play('blip');
     },
+    meterOn: false,
     meterLoop: function () {
       var self = this;
-      if ($('settings').hidden) return;
+      if ($('settings').hidden) { this.meterOn = false; return; }
       var lvl, thr;
       if (S.stompMode === 'motion') { lvl = Stomp.mLevel; thr = Stomp.mThr; }
       else { lvl = Stomp.level; thr = Stomp.thr; }
       var scale = thr * 2 || 1;
       $('meterFill').style.width = Math.min(100, lvl / scale * 100) + '%';
       $('meterThr').style.left = '50%';
+      if (Stomp.cal) {
+        var n = Stomp.calCount();
+        $('calText').textContent = n ? 'Поймал: ' + n + ' из 4' : 'Топни 4 раза по одному, с паузой ~1 сек';
+        if (n >= 4 && !Stomp.cal.ending) { Stomp.cal.ending = true; setTimeout(function () { Stomp.finishCal(); }, 700); }
+      }
       requestAnimationFrame(function () { self.meterLoop(); });
+    },
+
+    /* ---- Автокалибровка топота ---- */
+    calStart: function () {
+      if (S.stompMode === 'off') { UI.toast('Сначала выбери микрофон или датчик'); return; }
+      if (!Stomp.listening()) { Stomp.apply(); }
+      $('btnCal').disabled = true;
+      $('calText').textContent = 'Топни 4 раза по одному, с паузой ~1 сек';
+      $('calRow').classList.add('active');
+      Stomp.calibrate(function (res) {
+        var ok = false, miss = false;
+        if ('mic' in res) { if (res.mic) { S.calMic = res.mic; ok = true; } else miss = true; }
+        if ('motion' in res) { if (res.motion) { S.calMotion = res.motion; ok = true; } else miss = true; }
+        save();
+        UI.calEnd();
+        if (ok && !miss) { UI.toast('Готово: порог настроен под твой топот'); Sound.play('blip'); }
+        else if (ok) UI.toast('Настроил частично — один из сенсоров не услышал топот');
+        else UI.toast('Не поймал топот — топай сильнее или положи телефон ближе');
+      });
+    },
+    calEnd: function () {
+      $('btnCal').disabled = false;
+      $('calRow').classList.remove('active');
+      this.syncCal();
+    },
+    syncCal: function () {
+      var has = (Stomp.needsMic() && S.calMic) || (Stomp.needsMotion() && S.calMotion);
+      $('calText').textContent = S.stompMode === 'off' ? 'Топот выключен' :
+        has ? 'Настроено ✓' : 'Сейчас порог по ползунку';
+      $('btnCalReset').hidden = !(S.calMic || S.calMotion);
     }
   };
 
@@ -838,13 +968,29 @@
     if (e.key === 'r' || e.key === 'к') Timer.reset();
   });
 
+  var hiddenAt = 0;
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') {
-      if (Sound.ctx && Sound.ctx.state !== 'running') Sound.ctx.resume().catch(function () {});
-      if (Timer.running() && !Timer.paused) Wake.request();
-      if (App.unlocked && Stomp.needsMic() && !Stomp.analyser && !Stomp.paused) Stomp.startMic().then(function () { UI.renderChips(); });
-      Timer.tick(); UI.render(true);
-    }
+    if (document.visibilityState === 'hidden') { hiddenAt = now(); return; }
+    var away = hiddenAt ? now() - hiddenAt : 0;
+    if (Sound.ctx && Sound.ctx.state !== 'running') Sound.ctx.resume().catch(function () {});
+    if (App.unlocked) Wake.request();
+    if (App.unlocked && Stomp.needsMic() && !Stomp.analyser && !Stomp.paused) Stomp.startMic().then(function () { UI.renderChips(); });
+    Timer.tick(); UI.render(true);
+    // Через полсекунды проверяем, ожил ли звук. Если нет — без касания iPhone его не вернёт.
+    setTimeout(function () {
+      if (App.unlocked && Sound.ctx && Sound.ctx.state !== 'running') {
+        App.regate('Нажми, чтобы вернуть звук — iPhone выключил его, пока таймер был в фоне.');
+        return;
+      }
+      // Вернулись в идущую тренировку — коротко говорим, где мы.
+      if (away > 3000 && Timer.running() && !Timer.paused) {
+        var left = Math.ceil(Timer.remaining() / 1000);
+        var msg = Timer.phase === 'round' ? 'Раунд ' + Timer.round + '. Осталось ' + P.durWords(left)
+          : Timer.phase === 'rest' ? 'Отдых. До раунда ' + (Timer.round + 1) + ' ' + P.durWords(left)
+          : 'Подготовка';
+        Voice.say(msg);
+      }
+    }, 600);
   });
 
   function loop() {
@@ -861,6 +1007,10 @@
   requestAnimationFrame(loop);
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (hadController) UI.toast('Вышла новая версия — перезапусти таймер, когда закончишь');
+    });
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
 

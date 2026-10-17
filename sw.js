@@ -1,12 +1,12 @@
 /* Офлайн-кэш: таймер работает в зале без интернета. */
-const CACHE = 'boxing-timer-v1';
+const CACHE = 'boxing-timer-v2';
 const FILES = [
-  './', 'index.html', 'style.css', 'app.js', 'parse.js', 'manifest.webmanifest',
+  './', 'index.html', 'style.css', 'app.js', 'parse.js', 'detect.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -17,16 +17,18 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Сначала сеть (чтобы обновления доезжали), при отсутствии сети — кэш.
+// Сразу из кэша (мгновенный старт даже при плохом интернете в зале), а в фоне — свежая версия на следующий запуск.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
-      .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-        return res;
+    caches.open(CACHE).then((c) =>
+      c.match(e.request, { ignoreSearch: true }).then((cached) => {
+        const fresh = fetch(e.request)
+          .then((res) => { if (res.ok) c.put(e.request, res.clone()); return res; })
+          .catch(() => cached || c.match('index.html'));
+        if (cached) { e.waitUntil(fresh.catch(() => {})); return cached; }
+        return fresh;
       })
-      .catch(() => caches.match(e.request).then((r) => r || caches.match('index.html')))
+    )
   );
 });
