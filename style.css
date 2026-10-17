@@ -112,7 +112,7 @@ body.eco[data-phase="prep"][data-warn="1"] #root { animation: none; }
 }
 
 .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; }
-.phase-label, .round-label { font-weight: 900; font-size: clamp(24px, 5.4cqw, 52px); line-height: 1.05; letter-spacing: .06em; white-space: nowrap; }
+.phase-label, .round-label { font-family: var(--digits, inherit); font-weight: 900; font-size: clamp(24px, 5.4cqw, 52px); line-height: 1.05; letter-spacing: .06em; white-space: nowrap; }
 .top-right { display: flex; align-items: center; gap: 14px; flex: none; }
 .round-label small { font-size: .5em; font-weight: 800; letter-spacing: .08em; opacity: .7; margin-right: .3em; vertical-align: .3em; }
 .round-label span { opacity: .55; }
@@ -133,6 +133,7 @@ body.eco[data-phase="prep"][data-warn="1"] #root { animation: none; }
 .center { display: grid; place-items: center; min-height: 0; }
 .center > * { grid-area: 1 / 1; }
 .clock {
+  font-family: var(--digits, inherit);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
@@ -153,7 +154,7 @@ body.eco[data-phase="prep"][data-warn="1"] #root { animation: none; }
 /* Колесо: текущее значение по центру, соседние — блёкло выше и ниже. Тянуть, бросать, касаться соседнего. */
 .wheel {
   position: relative; overflow: hidden; touch-action: none; cursor: ns-resize;
-  font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  font-family: var(--digits, inherit); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
   mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
 }
@@ -167,7 +168,7 @@ body.eco[data-phase="prep"][data-warn="1"] #root { animation: none; }
 }
 
 .summary { text-align: center; }
-.summary-title { font-weight: 900; font-size: min(17cqw, 36cqh); letter-spacing: .08em; line-height: 1; color: var(--accent); }
+.summary-title { font-family: var(--digits, inherit); font-weight: 900; font-size: min(17cqw, 36cqh); letter-spacing: .08em; line-height: 1; color: var(--accent); }
 .summary-text { margin-top: 2cqh; font-weight: 700; font-size: clamp(16px, 3cqw, 28px); opacity: .8; }
 
 /* Полоса прогресса: одна CSS-анимация на всю фазу вместо перерисовки 60 раз в секунду */
@@ -192,6 +193,11 @@ body[data-phase="done"] #btnEdit { display: inline-flex; }
 body[data-phase="prep"] .clock, body[data-phase="round"] .clock, body[data-phase="rest"] .clock { display: block; }
 body[data-paused="0"][data-phase="prep"] .bar, body[data-paused="0"][data-phase="round"] .bar, body[data-paused="0"][data-phase="rest"] .bar { display: block; }
 body[data-paused="1"] .pause-controls { display: flex; }
+/* Бой — только цифры на весь экран: раунд и так объявляет голос, а пауза — касанием */
+body[data-phase="round"][data-paused="0"] .top, body[data-phase="round"][data-paused="0"] .bar { display: none; }
+body[data-phase="round"][data-paused="0"] #stage { grid-template-rows: minmax(0, 1fr); }
+body[data-phase="round"][data-paused="0"] .clock { font-size: min(44cqw, 92cqh); }
+body[data-phase="round"][data-paused="0"] .clock.long { font-size: min(34cqw, 92cqh); }
 body[data-paused="1"] .clock { opacity: .5; transform: translateY(-3%) scale(.68); }
 body[data-paused="1"] .phase-label { color: var(--warn); }
 
@@ -242,7 +248,7 @@ button:active { transform: scale(.96); }
 
 /* ---------- Чёрный экран ожидания ---------- */
 .dim { position: absolute; inset: 0; z-index: 15; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #3a3a3a; }
-.dim-clock { font-weight: 800; font-size: 9cqh; font-variant-numeric: tabular-nums; }
+.dim-clock { font-family: var(--digits, inherit); font-weight: 800; font-size: 9cqh; font-variant-numeric: tabular-nums; }
 .dim-hint { font-size: 15px; font-weight: 600; }
 
 /* ---------- Слои ---------- */
@@ -327,14 +333,6 @@ body[data-phase="idle"] .phase-label { display: none; }
 .preset { flex: none; height: 40px; padding: 0 14px; font-size: 15px; box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .2s, background .2s; }
 .preset.active { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(255, 51, 71, .14); }
 
-/* Выбор голоса — кнопками */
-.chips-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
-.chip-opt {
-  min-height: 44px; padding: 0 16px; border-radius: 22px; border: 0; cursor: pointer;
-  background: var(--panel); color: var(--muted); font-size: 15px; font-weight: 700;
-  box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .2s, color .2s;
-}
-.chip-opt.on { color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent); }
 .hint:empty { display: none; }
 
 .wheels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }
@@ -346,7 +344,20 @@ body[data-phase="idle"] .phase-label { display: none; }
 .row > span { min-width: 0; }
 .row em { display: block; font-style: normal; font-size: 12px; color: var(--muted); margin-top: 2px; }
 .row input[type="range"] { width: 50%; accent-color: var(--accent); }
-.sound-test { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0 0 4px; }
+/* Варианты (сигналы, шрифт): касание — выбрать и сразу услышать/увидеть */
+.snd-row { padding: 2px 0 10px; }
+.snd-lbl { display: block; font-size: 15px; margin-bottom: 6px; }
+.opts { display: flex; flex-wrap: wrap; gap: 5px; }
+.opt {
+  min-height: 40px; padding: 0 11px; border-radius: 20px; border: 0; cursor: pointer;
+  background: var(--panel); color: var(--muted); font-size: 14px; font-weight: 700;
+  box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .2s, color .2s;
+}
+.opt.on { color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent); }
+.font-opts { margin-bottom: 8px; }
+.font-opt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; min-width: 96px; padding: 8px 12px; border-radius: 14px; }
+.font-opt b { font-size: 28px; line-height: 1.05; color: var(--fg); font-weight: 800; font-variant-numeric: tabular-nums; }
+.font-opt span { font-size: 12px; }
 .field-lbl { font-size: 14px; font-weight: 600; color: var(--muted); margin: 6px 0 6px; }
 
 .switch { appearance: none; -webkit-appearance: none; width: 52px; height: 32px; border-radius: 16px; background: var(--panel-2); position: relative; flex: none; cursor: pointer; transition: background .2s; margin: 0; }

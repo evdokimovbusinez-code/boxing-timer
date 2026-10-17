@@ -1,4 +1,4 @@
-/* Все фразы голосового помощника. Один список на двоих:
+/* Все фразы голосового помощника — только важное: номер раунда, «10 секунд», счёт 5…1, сколько осталось, финиш. Один список на двоих:
  *  - tools/gen_voices.py озвучивает их нейросетью (GitHub Actions) в voices/<голос>/<id>.mp3
  *  - app.js проигрывает готовые файлы офлайн, а если файла нет — читает текст системным голосом iPhone.
  */
@@ -34,7 +34,7 @@
   }
 
   var MAX_ROUNDS = 30;
-  var WARN = [5, 10, 15, 20, 30];
+  var WARN = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]; // все значения колеса «Сигнал за»
 
   /** Фразы на языке lang ('ru' по умолчанию или 'en'). id одинаковые — приложению всё равно, на каком языке файл. */
   function list(lang) {
@@ -42,7 +42,6 @@
     var out = [];
     function add(id, text) { out.push({ id: id, text: text }); }
     add('prep', 'Приготовиться!');
-    add('start', 'Старт!');
     add('box', 'Бокс!');
     for (var r = 1; r <= MAX_ROUNDS; r++) add('round_' + r, 'Раунд ' + words(r) + '. Бокс!');
     add('last_round', 'Последний раунд. Бокс!');
@@ -52,13 +51,9 @@
       add('left_' + n, (n % 10 === 1 && n !== 11 ? 'Остался ' : 'Осталось ') + words(n) + ' ' + plural(n, ['раунд', 'раунда', 'раундов']) + '.');
     }
     WARN.forEach(function (s) { add('warn_' + s, cap(words(s)) + ' ' + plural(s, ['секунда', 'секунды', 'секунд']) + '!'); });
-    for (var k = 1; k <= MAX_ROUNDS; k++) add('ready_' + k, 'Готовимся, раунд ' + words(k) + '.');
-    add('ready_last', 'Готовимся, последний раунд.');
     add('half', 'Половина!');
     for (var c = 1; c <= 5; c++) add('cnt_' + c, cap(words(c)) + '!');
-    add('pause', 'Пауза.');
-    add('resume', 'Продолжаем!');
-    add('reset', 'Сброс.');
+    add('ok', 'Готово!');
     add('finish', 'Тренировка окончена. Отличная работа!');
     return out;
   }
@@ -67,7 +62,6 @@
     var out = [];
     function add(id, text) { out.push({ id: id, text: text }); }
     add('prep', 'Get ready!');
-    add('start', 'Start!');
     add('box', 'Box!');
     for (var r = 1; r <= MAX_ROUNDS; r++) add('round_' + r, 'Round ' + wordsEn(r) + '. Box!');
     add('last_round', 'Last round. Box!');
@@ -75,13 +69,9 @@
     add('left_1', 'One round left.');
     for (var n = 2; n <= MAX_ROUNDS; n++) add('left_' + n, cap(wordsEn(n)) + ' rounds left.');
     WARN.forEach(function (s) { add('warn_' + s, cap(wordsEn(s)) + ' seconds!'); });
-    for (var k = 1; k <= MAX_ROUNDS; k++) add('ready_' + k, 'Get ready, round ' + wordsEn(k) + '.');
-    add('ready_last', 'Get ready, last round.');
     add('half', 'Halfway!');
     for (var c = 1; c <= 5; c++) add('cnt_' + c, cap(wordsEn(c)) + '!');
-    add('pause', 'Pause.');
-    add('resume', "Let's go!");
-    add('reset', 'Reset.');
+    add('ok', 'Done!');
     add('finish', 'Workout complete. Great job!');
     return out;
   }

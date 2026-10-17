@@ -9,8 +9,8 @@
   /* ================= Настройки ================= */
   var DEFAULTS = {
     rounds: 10, roundSec: 120, restSec: 60, prepSec: 10, warnSec: 10,
-    lang: 'ru', voice: true, voiceId: 'voicer', voiceIdEn: 'voicer-en', voiceRev: 2, sysVoiceURI: '', volume: 1.4, loudRounds: true,
-    countVoice: false, halfVoice: false,
+    lang: 'ru', voice: true, volume: 1.4, loudRounds: true,
+    countVoice: true, halfVoice: false, sndStart: 'bell', sndEnd: 'gong', sndWarn: 'clapper', font: 'rounded', rev: 3,
     stompMode: 'mic', stompPattern: 'double', stompInRound: false, sens: 0.55,
     calMic: null, calMotion: null, stompModel: null,
     commands: false, flip: false, eco: false, dimIdle: true
@@ -27,15 +27,14 @@
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   if (saved) Object.assign(S, saved);
-  // Голос Артёма стал основным: кто был на прежнем голосе по умолчанию (Дмитрий), переходит на него один раз.
-  if (saved && !saved.voiceRev) { if (S.voiceId === 'dmitri') S.voiceId = 'voicer'; S.voiceRev = 2; }
+  // Владелец: «54321 — да». Счёт голосом теперь включён у всех, кто не менял настройки после этого.
+  if (saved && !(saved.rev >= 3)) { S.countVoice = true; S.rev = 3; }
   // Язык: у тех, кто уже пользовался, — русский как был; новому — по языку телефона.
   if (!saved || !saved.lang) S.lang = saved ? 'ru' : (/^ru|^uk|^be|^kk/i.test(navigator.language || 'ru') ? 'ru' : 'en');
   /** Текст интерфейса на текущем языке. */
   function L(k, v) { return I.t(S.lang, k, v); }
-  // Голос выбирается отдельно для каждого языка.
-  var vKey = function () { return S.lang === 'en' ? 'voiceIdEn' : 'voiceId'; };
-  var curVoice = function () { return S[vKey()]; };
+  // Голос один — Артём (на русском и английском). Выбора нет: владелец хочет только его.
+  var curVoice = function () { return S.lang === 'en' ? 'voicer-en' : 'voicer'; };
   if (S.volume < 0.4) S.volume = 0.4;
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
@@ -101,28 +100,65 @@
     BELL: [[1, 0.9], [2.0, 0.5], [2.76, 0.7], [5.4, 0.35], [8.93, 0.18]],
     GONG: [[1, 0.7], [1.004, 0.5], [1.5, 0.45], [2.0, 0.7], [2.92, 0.55], [4.07, 0.4], [5.2, 0.25], [6.8, 0.12]],
 
+    // Сигналы на выбор (Настройки → Звук). Возвращает длительность в мс — голос вступает после сигнала.
+    SIGNALS: ['bell', 'ding', 'gong', 'whistle', 'horn', 'clapper', 'beeps', 'none'],
     play: function (name) {
-      if (!this.ctx) return;
+      if (!this.ctx || !name || name === 'none') return 0;
       if (this.ctx.state !== 'running') this.ctx.resume().catch(function () {});
-      var t = this.ctx.currentTime + 0.03, self = this;
+      var t = this.ctx.currentTime + 0.03, self = this, len = 0;
       switch (name) {
-        case 'bellStart': // три быстрых высоких «дзынь» — начало раунда
+        case 'bell': // три быстрых высоких «дзынь» — как звонок на ринге
           [0, 0.28, 0.56].forEach(function (dt) { self.strike(t + dt, 1320, self.BELL, 1.2, 0.7); });
-          this.mark(1.8); break;
-        case 'gongEnd': // два протяжных «донг» — конец раунда
+          len = 0.75; break;
+        case 'ding': // один долгий удар колокола
+          this.strike(t, 880, this.BELL, 2.4, 0.95);
+          len = 0.6; break;
+        case 'gong': // два протяжных «донг»
           this.strike(t, 330, this.GONG, 2.8, 0.9);
           this.strike(t + 0.8, 330, this.GONG, 2.4, 0.8);
-          this.mark(3.2); break;
+          len = 1.15; break;
+        case 'whistle': this.whistle(t, 0.75); len = 0.8; break;
+        case 'horn': this.horn(t, 0.9); len = 0.95; break;
+        case 'clapper': // «тук-тук-тук»
+          [0, 0.13, 0.26].forEach(function (dt) { self.knock(t + dt); });
+          len = 0.35; break;
+        case 'beeps': [0, 0.22, 0.44].forEach(function (dt) { self.tone(t + dt, 1760, 0.15, 0.8); }); len = 0.6; break;
         case 'finish': // конец тренировки — гонг трижды
           [0, 0.75, 1.5].forEach(function (dt) { self.strike(t + dt, 300, self.GONG, 2.8, 0.9); });
-          this.mark(4.3); break;
-        case 'clapper': // «тук-тук-тук» — 10 секунд
-          [0, 0.13, 0.26].forEach(function (dt) { self.knock(t + dt); });
-          this.mark(0.6); break;
-        case 'beep': this.tone(t, 1760, 0.17, 0.75); this.mark(0.25); break;
-        case 'beepHigh': this.tone(t, 2093, 0.17, 0.75); this.mark(0.25); break;
-        case 'blip': this.tone(t, 1400, 0.06, 0.4); this.tone(t + 0.07, 1900, 0.08, 0.4); this.mark(0.2); break;
+          len = 2; break;
+        case 'beep': this.tone(t, 1760, 0.17, 0.75); len = 0.2; break;
+        case 'beepHigh': this.tone(t, 2093, 0.17, 0.75); len = 0.2; break;
+        case 'blip': this.tone(t, 1400, 0.06, 0.4); this.tone(t + 0.07, 1900, 0.08, 0.4); len = 0.15; break;
+        case 'pauseTone': this.tone(t, 1900, 0.07, 0.4); this.tone(t + 0.08, 1300, 0.1, 0.4); len = 0.2; break;
       }
+      this.mark(len + 0.6); // пока звучит свой сигнал, топот не слушаем
+      return Math.round(len * 1000);
+    },
+    // Свисток рефери: высокий тон с быстрой трелью и немного «дыхания».
+    whistle: function (t, dur) {
+      var c = this.ctx, o = c.createOscillator(), lfo = c.createOscillator(), lg = c.createGain(), g = c.createGain();
+      o.frequency.value = 2900; lfo.frequency.value = 26; lg.gain.value = 140;
+      lfo.connect(lg); lg.connect(o.frequency);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.75, t + 0.02);
+      g.gain.setValueAtTime(0.75, t + dur - 0.06); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(this.master);
+      o.start(t); lfo.start(t); o.stop(t + dur + 0.02); lfo.stop(t + dur + 0.02);
+      var nz = c.createBufferSource(), bp = c.createBiquadFilter(), ng = c.createGain();
+      nz.buffer = this.noise; nz.loop = true; bp.type = 'bandpass'; bp.frequency.value = 2900; bp.Q.value = 6;
+      ng.gain.setValueAtTime(0.25, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      nz.connect(bp); bp.connect(ng); ng.connect(this.master); nz.start(t); nz.stop(t + dur);
+    },
+    // Гудок, как сирена в зале: два тона, жёсткий тембр.
+    horn: function (t, dur) {
+      var c = this.ctx, self = this;
+      [523, 784].forEach(function (f) {
+        var o = c.createOscillator(), lp = c.createBiquadFilter(), g = c.createGain();
+        o.type = 'square'; o.frequency.value = f;
+        lp.type = 'lowpass'; lp.frequency.value = 3200;
+        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.32, t + 0.015);
+        g.gain.setValueAtTime(0.32, t + dur - 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(lp); lp.connect(g); g.connect(self.master); o.start(t); o.stop(t + dur + 0.02);
+      });
     },
     knock: function (t) {
       var c = this.ctx;
@@ -153,13 +189,7 @@
   var speechLang = function () { return S.lang === 'en' ? 'en-US' : 'ru-RU'; };
 
   var Clips = {
-    voices: [], voiceId: null, raw: {}, buf: {}, total: 0, loading: false, active: [], gen: 0,
-    loadIndex: function () {
-      var self = this;
-      return fetch('voices/index.json').then(function (r) { return r.ok ? r.json() : { voices: [] }; })
-        .then(function (d) { self.voices = d.voices || []; UI.fillVoices(); })
-        .catch(function () { self.voices = []; UI.fillVoices(); });
-    },
+    voiceId: null, raw: {}, buf: {}, total: 0, loading: false, active: [], gen: 0,
     // Скачиваем файлы голоса (они кэшируются для офлайна) и раскодируем, когда звук уже включён.
     load: function (id) {
       var self = this, gen = ++this.gen;
@@ -200,13 +230,6 @@
         .then(function () { UI.voiceStatus(); });
     },
     count: function () { return Object.keys(this.buf).length; },
-    /** Голоса текущего языка (в index.json у голоса есть lang; старые без него — русские). */
-    forLang: function () { return this.voices.filter(function (v) { return (v.lang || 'ru') === S.lang; }); },
-    // Если выбранного голоса для языка нет — берём первый нейроголос языка, а если их нет — голос iPhone.
-    pick: function () {
-      var ids = this.forLang().map(function (v) { return v.id; }), cur = curVoice();
-      if (cur !== 'system' && ids.indexOf(cur) < 0) { S[vKey()] = ids[0] || 'system'; save(); }
-    },
     ready: function (ids) {
       if (!ids.length || !Sound.ctx || !this.voiceId || this.voiceId === 'system') return false;
       for (var i = 0; i < ids.length; i++) if (!this.buf[ids[i]]) return false;
@@ -239,7 +262,7 @@
       var all = speechSynthesis.getVoices() || [];
       var re = S.lang === 'en' ? /^en/i : /^ru/i;
       this.sysVoices = all.filter(function (v) { return re.test(v.lang); });
-      this.sysVoice = (S.sysVoiceURI && this.sysVoices.find(function (v) { return v.voiceURI === S.sysVoiceURI; })) ||
+      this.sysVoice =
         this.sysVoices.find(function (v) { return /premium|enhanced|улучш/i.test(v.name); }) || this.sysVoices[0] || null;
     },
     unlock: function () {
@@ -261,6 +284,9 @@
         this.busy(dur * 1000);
         return;
       }
+      // Голос iPhone — только если записей Артёма нет совсем (первый запуск без интернета).
+      // Если записи есть, но эта ещё грузится, — лучше промолчать, чем заговорить чужим голосом.
+      if (Clips.total || Clips.loading) return;
       this.say(text || ids.map(function (i) { return TEXTS[i] || ''; }).join(' '));
     },
     say: function (text, opts) {
@@ -295,35 +321,38 @@
     },
     cancel: function () { this.cancelSystem(); Clips.stop(); this.speakingUntil = 0; }
   };
-  if (Voice.supported) speechSynthesis.onvoiceschanged = function () { Voice.loadSystem(); UI.fillVoices(); };
+  if (Voice.supported) speechSynthesis.onvoiceschanged = function () { Voice.loadSystem(); };
 
   /* ================= Хаптика: отклик на касание ================= */
-  // Вибрации из веба на iPhone нет. Но iOS 18+ даёт системный «тик» Taptic Engine, когда пользователь
-  // переключает <input switch> — поэтому в обработчиках касаний «щёлкаем» скрытый переключатель.
-  // Работает только в ответ на касание; без него iOS молчит. На Android — navigator.vibrate.
+  // Вибрации из веба на iPhone нет. Но iOS 18+ даёт системный тик Taptic Engine, когда переключается
+  // <input type="checkbox" switch>. Схема как в библиотеке ios-haptics: на каждый тик — новый скрытый
+  // переключатель, щелчок по его подписи, удаление. Работает только внутри обработчика касания.
+  // На Android — navigator.vibrate.
   var Haptic = {
-    el: null, last: 0,
-    ios: 'switch' in document.createElement('input'),
-    init: function () {
-      if (!this.ios || this.el) return;
-      var l = document.createElement('label'), i = document.createElement('input');
-      i.type = 'checkbox'; i.setAttribute('switch', ''); i.id = 'hapticSwitch'; i.tabIndex = -1;
-      l.setAttribute('aria-hidden', 'true'); l.style.display = 'none';
-      l.appendChild(i); document.body.appendChild(l);
-      this.el = l;
+    last: 0,
+    ios: /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+    tick: function () {
+      try {
+        var l = document.createElement('label'), i = document.createElement('input');
+        i.type = 'checkbox'; i.setAttribute('switch', ''); i.setAttribute('data-haptic', '');
+        l.setAttribute('aria-hidden', 'true'); l.setAttribute('data-haptic', ''); l.style.display = 'none';
+        l.appendChild(i); document.head.appendChild(l);
+        l.click();
+        document.head.removeChild(l);
+      } catch (e) {}
     },
     /** tick — шаг колеса, tap — кнопка, strong — старт, пауза, сброс (двойной тик). */
     play: function (kind) {
       var t = now();
       if (kind === 'tick' && t - this.last < 35) return;
       this.last = t;
+      Stomp.touched(); // своя вибрация — тоже «тук» для микрофона и датчика
       if (navigator.vibrate) { try { navigator.vibrate(kind === 'strong' ? [18, 70, 18] : kind === 'tick' ? 6 : 12); } catch (e) {} return; }
-      if (!this.el) return;
-      this.el.click();
-      if (kind === 'strong') { var l = this.el; setTimeout(function () { l.click(); }, 110); }
+      if (!this.ios) return;
+      this.tick();
+      if (kind === 'strong') setTimeout(function () { Haptic.tick(); }, 110);
     }
   };
-  Haptic.init();
 
   /* ================= Экран не гаснет вообще ================= */
   var Wake = {
@@ -373,11 +402,14 @@
     motDet: new D.OnsetDetector({ floor0: 0.05, dt: 16, refractory: 140, minFloor: 0.005 }),
     dbl: new D.DoubleTap(90, 900, 500, 450),
     sgl: new D.SingleTap(900, 700),
+    guard: new D.TouchGuard(450), // касание экрана и хаптика — «тук» в корпусе, не топот
     muteUntil: 0, level: 0, floor: 0.01, thr: 1, mLevel: 0, mThr: 1, lastP: null,
     lastMic: -1e9, lastMotion: -1e9,
     paused: false, suspended: false, cal: null,
 
     muteFor: function (ms) { this.muteUntil = Math.max(this.muteUntil, now() + ms); },
+    // Палец на экране или телефон сам вибрирует: удары рядом не считаем, начатый двойной топ сбрасываем.
+    touched: function () { this.guard.touch(now()); this.dbl.clear(); this.sgl.clear(); },
     needsMic: function () { return S.stompMode === 'mic' || S.stompMode === 'both'; },
     needsMotion: function () { return S.stompMode === 'motion' || S.stompMode === 'both'; },
     micLive: function () { return !!(this.stream && this.stream.getAudioTracks().some(function (t) { return t.readyState === 'live'; })); },
@@ -514,6 +546,7 @@
     onMicHit: function (peak, floor, t) {
       var self = this;
       this.floor = floor;
+      if (this.guard.blocks(t)) return;
       if (this.cal) { this.cal.mic(peak, floor, t); return; }
       if (t <= this.muteUntil) return;
       var thr = this.micThr(t, floor);
@@ -570,7 +603,7 @@
         var thr = D.threshold({ sens: S.sens, cal: S.calMotion, floor: self.motDet.floor, second: self.dbl.waiting(t), absHi: 3.2, absLo: 0.18 });
         self.mLevel = d; self.mThr = thr;
         var hit = self.motDet.push(d, t, thr);
-        if (self.cal) self.cal.motion(d, t, self.motDet.floor, prev);
+        if (self.cal) { if (!self.guard.blocks(t)) self.cal.motion(d, t, self.motDet.floor, prev); }
         else if (hit && t > self.muteUntil) { self.lastMotion = t; self.raw('motion', t); }
       }
       self.mPrev = { x: a.x, y: a.y, z: a.z };
@@ -578,6 +611,7 @@
 
     // Сырой удар → правило «оба» → одиночный/двойной.
     raw: function (src, t) {
+      if (src !== 'key' && this.guard.blocks(t)) return;
       if (S.stompMode === 'both' && src !== 'key') {
         var other = src === 'mic' ? this.lastMotion : this.lastMic;
         if (Math.abs(t - other) > 200) return;
@@ -738,7 +772,7 @@
       if (!this.running() || this.paused) return;
       this.left = this.remaining(); this.paused = true; this.epoch++;
       clearTimeout(this.tickTimer);
-      Voice.speak(['pause']);
+      Voice.cancel(); Sound.play('pauseTone');
       App.syncMic(1200);
       UI.render(true);
     },
@@ -747,8 +781,7 @@
       this.endAt = now() + this.left; this.paused = false; this.epoch++;
       Sound.unlock(); Wake.request();
       App.syncMic(0);
-      var ep = this.epoch;
-      setTimeout(function () { if (Timer.epoch === ep) Voice.speak(['resume']); }, 300);
+      Sound.play('blip');
       UI.render(true);
       this.schedule();
     },
@@ -771,13 +804,11 @@
       if (p === 'prep') {
         Voice.later(400, ['prep'], L('say.prep', { rounds: L('n.rounds', { n: total }) }));
       } else if (p === 'round') {
-        Sound.play('bellStart');
         var id = total > 1 && r === total ? 'last_round' : (total > 1 && r <= PH.MAX_ROUNDS ? 'round_' + r : 'box');
-        Voice.later(950, [id]);
+        Voice.later(Sound.play(S.sndStart) + 250, [id]);
       } else if (p === 'rest') {
-        Sound.play('gongEnd');
         var left = total - r;
-        Voice.later(1400, ['stop_rest', left === 1 ? 'left_1' : 'left_' + Math.min(left, PH.MAX_ROUNDS)]);
+        Voice.later(Sound.play(S.sndEnd) + 250, ['stop_rest', left === 1 ? 'left_1' : 'left_' + Math.min(left, PH.MAX_ROUNDS)]);
       } else if (p === 'done') {
         Sound.play('finish');
         Voice.later(2000, ['finish']);
@@ -806,28 +837,20 @@
       var sec = Math.ceil(rem / 1000);
       if (sec !== this.lastSec) { this.lastSec = sec; this.onSecond(sec); }
     },
+    // Голос — только важное: «10 секунд» с сигналом и счёт 5…1 (в раунде и перед раундом), остальное — звуки.
     onSecond: function (sec) {
-      var w = S.warnSec, p = this.phase;
-      if (p === 'round') {
-        if (w > 0 && sec === w && this.dur > (w + 2) * 1000) {
-          Sound.play('clapper');
-          if (PH.WARN.indexOf(w) >= 0) Voice.later(420, ['warn_' + w]);
-          else Voice.later(420, [], L('say.seconds', { n: w }));
-        }
-        if (S.halfVoice && this.dur >= 60000 && sec === Math.round(this.dur / 2000) && sec > w + 2) {
-          Sound.play('beepHigh');
-          Voice.later(280, ['half']);
-        }
-        if (S.countVoice && sec >= 1 && sec <= 5 && sec < w) Voice.speak(['cnt_' + sec]);
-        else if (!S.countVoice && sec >= 1 && sec <= 3) Sound.play('beep');
-      } else if (p === 'rest' || p === 'prep') {
-        if (sec === 10 && this.dur > 13000) {
-          var nr = p === 'prep' ? 1 : this.round + 1;
-          var rid = nr === S.rounds && S.rounds > 1 ? 'ready_last' : 'ready_' + Math.min(nr, PH.MAX_ROUNDS);
-          Voice.speak(['warn_10', rid]);
-        }
-        if (sec >= 1 && sec <= 3) Sound.play('beepHigh');
+      var p = this.phase, w = p === 'round' ? S.warnSec : 10;
+      if (w > 0 && sec === w && this.dur > (w + 2) * 1000) {
+        var d = Sound.play(S.sndWarn);
+        if (PH.WARN.indexOf(w) >= 0) Voice.later(d + 120, ['warn_' + w]);
       }
+      if (p === 'round' && S.halfVoice && this.dur >= 60000 && sec === Math.round(this.dur / 2000) && sec > w + 2) {
+        Sound.play('beepHigh');
+        Voice.later(280, ['half']);
+      }
+      var countFrom = Math.min(5, Math.ceil(this.dur / 1000) - 1);
+      if (S.countVoice && S.voice && sec >= 1 && sec <= countFrom && sec < w) Voice.speak(['cnt_' + sec]);
+      else if (sec >= 1 && sec <= 3) Sound.play(p === 'round' ? 'beep' : 'beepHigh');
     }
   };
 
@@ -952,7 +975,7 @@
       if (!$('voiceLayer').hidden || !$('gate').hidden || !$('calLayer').hidden || this.starting) return;
       var T = Timer, self = this;
       if (T.phase === 'idle' || T.phase === 'done') {
-        UI.flashStomp(); Voice.speak(['start']);
+        UI.flashStomp(); Sound.play('blip');
         this.starting = true;
         setTimeout(function () {
           self.starting = false;
@@ -974,7 +997,7 @@
         var msg = App.describe();
         $('voiceResult').textContent = msg;
         UI.toast(msg);
-        Voice.say(L('say.ok', { msg: msg }));
+        Voice.speak(['ok']);
         if (cmd !== 'start') return;
       }
       if (!cmd) {
@@ -993,6 +1016,15 @@
     describe: function () {
       return L('describe', { rounds: L('n.rounds', { n: S.rounds }), len: fmt(S.roundSec), rest: S.restSec ? fmt(S.restSec) : L('none') });
     }
+  };
+
+  // Шрифты цифр: только встроенные в iPhone — работают офлайн, ничего не скачивается.
+  var FONTS = {
+    rounded: '"SF Pro Rounded", ui-rounded, -apple-system, system-ui, sans-serif',
+    classic: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif',
+    din: '"DIN Condensed", "DIN Alternate", Bahnschrift, "Roboto Condensed", "Arial Narrow", sans-serif',
+    serif: 'ui-serif, "New York", Georgia, "Times New Roman", serif',
+    mono: 'ui-monospace, "SF Mono", Menlo, "Courier New", monospace'
   };
 
   /* ================= Колесо настройки: листаем пальцем, как будильник в iPhone ================= */
@@ -1122,7 +1154,7 @@
     setLang: function (lang) {
       if (lang === S.lang) return;
       S.lang = lang; save();
-      loadTexts(); Voice.loadSystem(); Clips.pick(); Clips.load(curVoice());
+      loadTexts(); Voice.loadSystem(); Clips.load(curVoice());
       if (Listen.cmdOn) { Listen.stopCommands(true); Listen.startCommands(); } // распознавание — на новом языке
       this.applyLang(); this.syncSettings(); this.render(true);
       if (!$('settings').hidden) this.showTab(this.tab);
@@ -1130,6 +1162,13 @@
     applyLook: function () {
       document.body.classList.toggle('flip', !!S.flip);
       document.body.classList.toggle('eco', !!S.eco);
+      document.body.style.setProperty('--digits', FONTS[S.font] || FONTS.rounded);
+    },
+    syncOpts: function () {
+      document.querySelectorAll('[data-snd]').forEach(function (box) {
+        box.querySelectorAll('.opt').forEach(function (b) { var on = S[box.dataset.snd] === b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+      });
+      document.querySelectorAll('#fontOpts .opt').forEach(function (b) { var on = S.font === b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
     },
 
     render: function (force) {
@@ -1355,12 +1394,23 @@
       $('optFlip').onchange = function () { S.flip = this.checked; save(); self.applyLook(); };
       $('optEco').onchange = function () { S.eco = this.checked; save(); self.applyLook(); };
       $('optDim').onchange = function () { S.dimIdle = this.checked; save(); };
-      document.querySelectorAll('[data-sound]').forEach(function (b) {
-        b.onclick = function () {
-          Sound.unlock();
-          if (b.dataset.sound === 'voice') Voice.speak(['warn_10', 'ready_3']);
-          else Sound.play(b.dataset.sound);
-        };
+      // Сигналы: касание выбирает и сразу проигрывает — отдельная «проверка звука» не нужна.
+      document.querySelectorAll('[data-snd]').forEach(function (box) {
+        Sound.SIGNALS.forEach(function (v) {
+          var b = document.createElement('button');
+          b.type = 'button'; b.className = 'opt'; b.dataset.v = v; b.dataset.i18n = 'snd.' + v;
+          b.setAttribute('role', 'radio');
+          b.onclick = function () { S[box.dataset.snd] = v; save(); Sound.unlock(); Sound.play(v); self.syncOpts(); };
+          box.appendChild(b);
+        });
+      });
+      // Шрифт цифр: каждый вариант показан своим шрифтом.
+      Object.keys(FONTS).forEach(function (v) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'opt font-opt'; b.dataset.v = v; b.setAttribute('role', 'radio');
+        b.innerHTML = '<b style="font-family:' + FONTS[v].replace(/"/g, "'") + '">1:23</b><span data-i18n="font.' + v + '"></span>';
+        b.onclick = function () { S.font = v; save(); self.applyLook(); self.syncOpts(); };
+        $('fontOpts').appendChild(b);
       });
       $('btnCal').onclick = function () { Cal.open(); };
       $('btnCalNext').onclick = function () { Cal.next(); };
@@ -1403,6 +1453,7 @@
     syncSettings: function () {
       this.syncWheels();
       this.syncPresets();
+      this.syncOpts();
       $('optVoice').checked = S.voice;
       $('optVolume').value = S.volume;
       $('optCount').checked = S.countVoice;
@@ -1426,7 +1477,6 @@
       $('stompPattern').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.stompPattern); });
       $('stompModeHint').textContent = L('smh.' + S.stompMode);
       this.syncCal();
-      this.fillVoices();
       this.voiceStatus();
     },
     syncPresets: function () {
@@ -1444,33 +1494,9 @@
         parts.length ? L('cal.offline', { parts: parts.join(' · ') }) : L('cal.none');
       $('btnCalReset').hidden = !(S.calMic || S.calMotion || S.stompModel);
     },
-    // Голоса — кнопками: касание выбирает и сразу даёт послушать (повторное — послушать ещё раз).
-    fillVoices: function () {
-      var box = $('voiceChips'), self = this;
-      var list = Clips.forLang().map(function (v) { return { id: v.id, name: v.label }; }).concat([{ id: 'system', name: 'iPhone' }]);
-      box.innerHTML = '';
-      list.forEach(function (v) {
-        var b = document.createElement('button');
-        b.type = 'button'; b.className = 'chip-opt' + (curVoice() === v.id ? ' on' : '');
-        b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', curVoice() === v.id ? 'true' : 'false');
-        b.textContent = v.name;
-        b.onclick = function () {
-          Sound.unlock();
-          if (v.id === 'system') {
-            S[vKey()] = 'system'; S.sysVoiceURI = ''; Voice.loadSystem();
-            if (Clips.voiceId !== 'system') Clips.load('system');
-            Voice.say(L('say.sample'));
-          } else if (Clips.voiceId === v.id) Voice.speak(['round_3']);
-          else { S[vKey()] = v.id; Clips.load(v.id).then(function () { if (curVoice() === v.id) Voice.speak(['round_3']); }); }
-          save(); self.fillVoices();
-        };
-        box.appendChild(b);
-      });
-    },
     voiceStatus: function () {
       var el = $('voiceStatus'); if (!el) return;
       // Пишем, только когда есть что сказать: загрузка или проблема. Всё готово — тишина.
-      if (curVoice() === 'system') { el.textContent = L('vs.system'); return; }
       var n = Clips.count(), t = Clips.total;
       if (!t) el.textContent = Clips.loading ? L('vs.loading') : L('vs.missing');
       else if (n < t) el.textContent = L(Object.keys(Clips.raw).length >= t ? 'vs.prepare' : 'vs.download', { p: Math.round(n / t * 100) });
@@ -1522,7 +1548,7 @@
   // Тик на каждую кнопку, переключатель и список. Главные действия — двойной тик.
   document.addEventListener('click', function (e) {
     var t = e.target;
-    if (t.id === 'hapticSwitch') return;
+    if (t.closest && t.closest('[data-haptic]')) return;
     var b = t.closest && t.closest('button, input[type="checkbox"], select');
     if (!b || b.disabled) return;
     var strong = b.id === 'btnStart' || b.id === 'btnResume' || b.id === 'btnGate' || (b.id === 'btnReset' && b.classList.contains('confirm'));
@@ -1538,7 +1564,8 @@
   $('chipVoice').onclick = function () { Listen.once(); };
   $('btnSettingsClose').onclick = function () { UI.closeSettings(); };
   $('btnVoiceClose').onclick = function () { Listen.closeOnce(); };
-  document.addEventListener('pointerdown', function () { UI.lastActive = now(); }, { passive: true });
+  document.addEventListener('pointerdown', function () { UI.lastActive = now(); Stomp.touched(); }, { passive: true, capture: true });
+  document.addEventListener('pointerup', function () { Stomp.touched(); }, { passive: true, capture: true });
 
   document.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -1551,7 +1578,6 @@
   var hiddenAt = 0;
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'hidden') { hiddenAt = now(); clearTimeout(Timer.tickTimer); return; }
-    var away = hiddenAt ? now() - hiddenAt : 0;
     if (Sound.ctx && Sound.ctx.state !== 'running') Sound.ctx.resume().catch(function () {});
     if (App.unlocked) Wake.request();
     if (App.unlocked && App.micWanted() && !Stomp.listening() && !Stomp.paused) Stomp.startMic().then(function () { UI.renderStatus(); });
@@ -1560,11 +1586,6 @@
       if (App.unlocked && Sound.ctx && Sound.ctx.state !== 'running') {
         App.regate(L('gate.back'));
         return;
-      }
-      if (away > 3000 && Timer.running() && !Timer.paused) {
-        var left = Math.ceil(Timer.remaining() / 1000);
-        Voice.say(Timer.phase === 'round' ? L('say.round', { r: Timer.round, left: P.durWords(left, S.lang) })
-          : Timer.phase === 'rest' ? L('say.rest', { r: Timer.round + 1, left: P.durWords(left, S.lang) }) : L('say.prepShort'));
       }
     }, 600);
   });
@@ -1577,11 +1598,7 @@
   UI.buildSettings();
   UI.applyLang();
   Voice.loadSystem();
-  Clips.loadIndex().then(function () {
-    Clips.pick();
-    UI.fillVoices();
-    return Clips.load(curVoice());
-  });
+  Clips.load(curVoice());
   UI.syncSettings();
   UI.render(true);
 
