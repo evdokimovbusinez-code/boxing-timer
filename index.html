@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Раунды">
+<meta name="theme-color" content="#0b0b0d">
+<title>Боксёрский таймер</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-phase="idle">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-foot" viewBox="0 0 24 24"><ellipse cx="10" cy="15.5" rx="4.6" ry="6.2" fill="currentColor"/><circle cx="16.8" cy="7.2" r="1.7" fill="currentColor"/><circle cx="14.2" cy="4.6" r="1.5" fill="currentColor"/><circle cx="11" cy="3.4" r="1.4" fill="currentColor"/><circle cx="7.9" cy="3.8" r="1.3" fill="currentColor"/><circle cx="5.3" cy="5.4" r="1.2" fill="currentColor"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="8.5" y="2.5" width="7" height="12" rx="3.5" fill="currentColor"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5V22M8.5 22h7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h12M20 18h0" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="16" cy="6" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/></symbol>
+  <symbol id="i-skip" viewBox="0 0 24 24"><path d="M5 5v14l10-7zM17 5h2.5v14H17z" fill="currentColor"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v4.5H9" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+</svg>
+
+<main id="stage">
+  <header class="top">
+    <div id="roundLabel" class="round-label"></div>
+    <div class="chips">
+      <button id="chipStomp" class="chip" type="button" aria-label="Топот"><svg><use href="#i-foot"/></svg><span id="chipStompText">выкл</span><i class="dot"></i></button>
+      <button id="chipVoice" class="chip" type="button" aria-label="Голосом"><svg><use href="#i-mic"/></svg><span>голосом</span></button>
+      <button id="chipSettings" class="chip chip-icon" type="button" aria-label="Настройки"><svg><use href="#i-sliders"/></svg></button>
+    </div>
+  </header>
+
+  <div id="clockWrap"><div id="clock">2:00</div></div>
+
+  <div class="phase-row">
+    <span id="phaseLabel" class="phase-label">ГОТОВ</span>
+    <span id="nextLabel" class="next-label"></span>
+  </div>
+
+  <div id="bar" class="bar"><i id="barFill"></i></div>
+  <div id="pips" class="pips"></div>
+
+  <div id="idleControls" class="idle-controls">
+    <button id="btnStart" class="btn btn-start" type="button"><svg><use href="#i-play"/></svg>Старт</button>
+    <p id="idleHint" class="hint"></p>
+  </div>
+
+  <div id="stompFlash" class="stomp-flash"><svg><use href="#i-foot"/></svg></div>
+</main>
+
+<!-- Пауза -->
+<div id="pauseLayer" class="layer pause-layer" hidden>
+  <div class="pause-title">ПАУЗА</div>
+  <div class="pause-actions">
+    <button id="btnResume" class="btn btn-big" type="button"><svg><use href="#i-play"/></svg>Продолжить</button>
+    <button id="btnSkip" class="btn" type="button"><svg><use href="#i-skip"/></svg>Дальше</button>
+    <button id="btnReset" class="btn" type="button"><svg><use href="#i-reset"/></svg>Сброс</button>
+    <button id="btnPauseSettings" class="btn" type="button"><svg><use href="#i-sliders"/></svg>Настройки</button>
+  </div>
+  <p class="hint" id="pauseHint"></p>
+</div>
+
+<!-- Первое касание: iOS не включает звук и микрофон без него -->
+<div id="gate" class="layer gate">
+  <div class="gate-card">
+    <div class="gate-logo">2:00</div>
+    <h1>Боксёрский таймер</h1>
+    <p>Нажми один раз — iPhone разрешит звук, голос и датчики для топота.</p>
+    <button id="btnGate" class="btn btn-start" type="button">Включить</button>
+    <p class="hint small">Поверни телефон горизонтально. Лучше всего — «На экран Домой».</p>
+  </div>
+</div>
+
+<!-- Голосовая настройка -->
+<div id="voiceLayer" class="layer voice-layer" hidden>
+  <div class="voice-card">
+    <div class="voice-orb"><svg><use href="#i-mic"/></svg></div>
+    <p class="voice-prompt" id="voicePrompt">Говори: «10 раундов по 2 минуты, отдых минута»</p>
+    <p class="voice-text" id="voiceText"></p>
+    <p class="voice-result" id="voiceResult"></p>
+    <button id="btnVoiceClose" class="btn" type="button">Готово</button>
+  </div>
+</div>
+
+<!-- Настройки -->
+<div id="settings" class="layer sheet" hidden>
+  <div class="sheet-head">
+    <h2>Настройки</h2>
+    <button id="btnSettingsClose" class="icon-btn" type="button" aria-label="Закрыть"><svg><use href="#i-close"/></svg></button>
+  </div>
+  <div class="sheet-body">
+    <section>
+      <h3>Пресеты</h3>
+      <div id="presets" class="presets"></div>
+    </section>
+
+    <section>
+      <h3>Время</h3>
+      <div id="steppers" class="steppers"></div>
+    </section>
+
+    <section>
+      <h3>Голос и звук</h3>
+      <label class="row"><span>Голосовой помощник</span><input type="checkbox" id="optVoice" class="switch"></label>
+      <label class="row"><span>Считать вслух 5…1 в конце раунда</span><input type="checkbox" id="optCount" class="switch"></label>
+      <label class="row"><span>Голос</span><select id="optVoiceName"></select></label>
+      <label class="row"><span>Громкость звуков</span><input type="range" id="optVolume" min="0.2" max="1.5" step="0.05"></label>
+      <div class="row sound-test">
+        <button class="btn btn-small" data-sound="bellStart" type="button">Старт раунда</button>
+        <button class="btn btn-small" data-sound="clapper" type="button">10 секунд</button>
+        <button class="btn btn-small" data-sound="gongEnd" type="button">Конец раунда</button>
+        <button class="btn btn-small" data-sound="voice" type="button">Голос</button>
+      </div>
+    </section>
+
+    <section>
+      <h3>Старт топотом</h3>
+      <div class="seg" id="stompMode">
+        <button data-v="off" type="button">Выкл</button>
+        <button data-v="mic" type="button">Микрофон</button>
+        <button data-v="motion" type="button">Датчик</button>
+        <button data-v="both" type="button">Оба (строже)</button>
+      </div>
+      <p class="hint small" id="stompModeHint"></p>
+      <div class="seg" id="stompPattern">
+        <button data-v="single" type="button">Один топ</button>
+        <button data-v="double" type="button">Двойной топ</button>
+      </div>
+      <label class="row"><span>Слушать топот во время раунда (пауза)</span><input type="checkbox" id="optStompRound" class="switch"></label>
+      <label class="row"><span>Чувствительность</span><input type="range" id="optSens" min="0" max="1" step="0.01"></label>
+      <div class="meter-wrap">
+        <div class="meter"><i id="meterFill"></i><b id="meterThr"></b></div>
+        <span class="meter-count" id="meterCount">топни — проверим</span>
+      </div>
+    </section>
+
+    <section>
+      <h3>Голосовые команды <span class="tag">бета</span></h3>
+      <label class="row"><span>Слушать «старт», «пауза», «дальше», «сброс»</span><input type="checkbox" id="optCommands" class="switch"></label>
+      <p class="hint small" id="commandsHint"></p>
+    </section>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="parse.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
