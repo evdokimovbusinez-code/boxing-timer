@@ -1,4 +1,4 @@
-/* Разбор голосовых фраз на русском: «10 раундов по 2 минуты, отдых минута». */
+/* Разбор голосовых фраз: «10 раундов по 2 минуты, отдых минута» и «10 rounds of 2 minutes, rest 1 minute». */
 (function (root) {
   'use strict';
 
@@ -9,18 +9,22 @@
     'восемь': 8, 'восьми': 8, 'девять': 9, 'девяти': 9, 'десять': 10, 'десяти': 10,
     'одиннадцать': 11, 'двенадцать': 12, 'тринадцать': 13, 'четырнадцать': 14,
     'пятнадцать': 15, 'шестнадцать': 16, 'семнадцать': 17, 'восемнадцать': 18,
-    'девятнадцать': 19
+    'девятнадцать': 19,
+    'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+    'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16,
+    'seventeen': 17, 'eighteen': 18, 'nineteen': 19
   };
-  var TENS = { 'двадцать': 20, 'тридцать': 30, 'сорок': 40, 'пятьдесят': 50, 'шестьдесят': 60, 'девяносто': 90 };
+  var TENS = { 'двадцать': 20, 'тридцать': 30, 'сорок': 40, 'пятьдесят': 50, 'шестьдесят': 60, 'девяносто': 90,
+    'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'ninety': 90 };
   var HALF = { 'полторы': 1.5, 'полтора': 1.5, 'полутора': 1.5 };
 
-  function isMin(w) { return /^мин(ут[а-я]*)?$/.test(w); }
-  function isSec(w) { return /^сек(унд[а-я]*)?$/.test(w); }
+  function isMin(w) { return /^мин(ут[а-я]*)?$/.test(w) || /^min(ute)?s?$/.test(w); }
+  function isSec(w) { return /^сек(унд[а-я]*)?$/.test(w) || /^sec(ond)?s?$/.test(w); }
   function kindOf(w) {
-    if (/^(раунд|бо[йяеию]$|боев|бокс|работ|спарр|схват)/.test(w)) return 'round';
-    if (/^(отдых|перерыв|пауз|передыш)/.test(w)) return 'rest';
-    if (/^(подготов|разминк)/.test(w)) return 'prep';
-    if (/^(предупрежд|сигнал)/.test(w)) return 'warn';
+    if (/^(раунд|бо[йяеию]$|боев|бокс|работ|спарр|схват)/.test(w) || /^(rounds?|fight|work|box|boxing|spar)$/.test(w)) return 'round';
+    if (/^(отдых|перерыв|пауз|передыш)/.test(w) || /^(rest|break|recover)/.test(w)) return 'rest';
+    if (/^(подготов|разминк)/.test(w) || /^(prep|warm)/.test(w)) return 'prep';
+    if (/^(предупрежд|сигнал)/.test(w) || /^(warn|signal|alert)/.test(w)) return 'warn';
     return null;
   }
 
@@ -29,6 +33,10 @@
     s = s.replace(/(\d+):(\d{2})/g, function (m, a, b) { return ' ' + (+a + (+b) / 60) + ' мин '; });
     s = s.replace(/(\d),(\d)/g, '$1.$2');
     s = s.replace(/пол\s?минуты/g, ' 30 сек ');
+    s = s.replace(/(an?\s+)?minute\s+and\s+a\s+half/g, ' 1.5 min ').replace(/\band\s+a\s+half\b/g, ' andahalf ')
+      .replace(/\bhalf\s+(a\s+)?minute\b/g, ' 30 sec ');
+    // Запятая и конец предложения — граница: «3 минуты, 30 секунд отдых» — это не 3:30.
+    s = s.replace(/[,;!?]|\.(\s|$)/g, ' xsep ');
     s = s.replace(/([а-я])(\d)/g, '$1 $2').replace(/(\d)([а-я])/g, '$1 $2');
     var words = s.split(/[^0-9a-zа-я.]+/).map(function (w) { return w.replace(/^\.+|\.+$/g, ''); }).filter(Boolean);
     var out = [];
@@ -44,6 +52,7 @@
 
       if (n !== null) {
         if (words[i + 1] === 'с' && /^половин/.test(words[i + 2] || '')) { n += 0.5; i += 2; }
+        else if (words[i + 1] === 'andahalf') { n += 0.5; i += 1; }
         out.push({ t: 'num', v: n });
       } else {
         out.push({ t: 'w', v: w });
@@ -74,11 +83,12 @@
             continue;
           }
           if (isSec(nx.v)) { items.push({ type: 'q', sec: Math.round(t.v), i: i, j: i + 1 }); i++; continue; }
-          if (/^раунд/.test(nx.v)) { res.rounds = Math.round(t.v); items.push({ type: 'kw', kind: 'round', i: i + 1, count: true }); i++; continue; }
+          if (/^(раунд|round)/.test(nx.v)) { res.rounds = Math.round(t.v); items.push({ type: 'kw', kind: 'round', i: i + 1, count: true }); i++; continue; }
         }
         items.push({ type: 'n', v: t.v, i: i, j: i });
         continue;
       }
+      if (t.v === 'xsep') { items.push({ type: 'sep', i: i }); continue; }
       if (isMin(t.v)) { items.push({ type: 'q', sec: 60, i: i, j: i }); continue; }
       if (isSec(t.v)) continue;
       var k = kindOf(t.v);
@@ -124,11 +134,11 @@
   /** Голосовые команды управления. */
   function parseCommand(text) {
     var s = String(text || '').toLowerCase().replace(/ё/g, 'е');
-    if (/(сброс|заново|отмен)/.test(s)) return 'reset';
-    if (/(дальше|пропуст|скип|следующ)/.test(s)) return 'skip';
-    if (/(продолж)/.test(s)) return 'resume';
-    if (/(пауз|подожд|стоп|(^|[^а-я])стой($|[^а-я]))/.test(s)) return 'pause';
-    if (/(старт|поехали|погнали|начина|начали|начать|вперед|(^|[^а-я])го($|[^а-я]))/.test(s)) return 'start';
+    if (/(сброс|заново|отмен)/.test(s) || /\b(reset|restart|start over|cancel)\b/.test(s)) return 'reset';
+    if (/(дальше|пропуст|скип|следующ)/.test(s) || /\b(next|skip)\b/.test(s)) return 'skip';
+    if (/(продолж)/.test(s) || /\b(resume|continue|unpause)\b/.test(s)) return 'resume';
+    if (/(пауз|подожд|стоп|(^|[^а-я])стой($|[^а-я]))/.test(s) || /\b(pause|stop|wait|hold)\b/.test(s)) return 'pause';
+    if (/(старт|поехали|погнали|начина|начали|начать|вперед|(^|[^а-я])го($|[^а-я]))/.test(s) || /\b(start|go|begin)\b/.test(s)) return 'start';
     return null;
   }
 
@@ -142,8 +152,14 @@
   }
 
   /** Длительность словами для озвучки (именительный падеж). */
-  function durWords(sec) {
+  function durWords(sec, lang) {
     sec = Math.round(sec);
+    if (lang === 'en') {
+      var mm = Math.floor(sec / 60), ss = sec % 60, en = [];
+      if (mm) en.push(mm + (mm === 1 ? ' minute' : ' minutes'));
+      if (ss) en.push(ss + (ss === 1 ? ' second' : ' seconds'));
+      return en.length ? en.join(' ') : 'no rest';
+    }
     if (sec === 90) return 'полторы минуты';
     var m = Math.floor(sec / 60), s = sec % 60, parts = [];
     if (m === 1) parts.push('минута');
@@ -154,7 +170,23 @@
     return parts.join(' ');
   }
 
-  var api = { tokenize: tokenize, parseWorkout: parseWorkout, parseCommand: parseCommand, plural: plural, durWords: durWords };
+  /* Значения для колеса настройки: мелкий шаг там, где он нужен, крупный — дальше. */
+  function range(a, b, step) { var r = []; for (var v = a; v <= b; v += step) r.push(v); return r; }
+  var CHOICES = {
+    rounds: range(1, 30, 1),
+    roundSec: range(15, 55, 5).concat(range(60, 300, 15), range(330, 600, 30), range(660, 1200, 60)),
+    restSec: [0].concat(range(5, 55, 5), range(60, 300, 15), range(330, 600, 30)),
+    prepSec: range(0, 60, 5),
+    warnSec: range(0, 60, 5)
+  };
+  /** Список значений для настройки k; текущее значение не из списка (например, голосом «2:10») встаёт на своё место. */
+  function choices(k, cur) {
+    var l = CHOICES[k].slice();
+    if (cur != null && l.indexOf(cur) < 0) { l.push(cur); l.sort(function (x, y) { return x - y; }); }
+    return l;
+  }
+
+  var api = { tokenize: tokenize, parseWorkout: parseWorkout, parseCommand: parseCommand, plural: plural, durWords: durWords, choices: choices };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.BoxParse = api;
 })(this);

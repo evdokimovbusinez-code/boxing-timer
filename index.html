@@ -23,35 +23,56 @@
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></symbol>
   <symbol id="i-skip" viewBox="0 0 24 24"><path d="M5 5v14l10-7zM17 5h2.5v14H17z" fill="currentColor"/></symbol>
   <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v4.5H9" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+  <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9.5v4l2.6 2M9.5 2.8h5M19 6.2l1.4-1.4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a8 8 0 0 1 0 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="i-screen" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M18.5 10.5v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
 </svg>
 
 <!-- Всё приложение внутри #root: в портрете он поворачивается, поэтому экран всегда горизонтальный -->
 <div id="root">
 
+<!-- Один экран на всё: план до старта → часы в тренировке (на паузе — с кнопками) → итог -->
 <main id="stage">
   <header class="top">
-    <div id="roundLabel" class="round-label"></div>
-    <div class="chips">
-      <button id="chipStomp" class="chip" type="button" aria-label="Топот"><svg><use href="#i-foot"/></svg><span id="chipStompText">выкл</span><i class="dot"></i></button>
-      <button id="chipVoice" class="chip" type="button" aria-label="Голосом"><svg><use href="#i-mic"/></svg><span>голосом</span></button>
-      <button id="chipSettings" class="chip chip-icon" type="button" aria-label="Настройки"><svg><use href="#i-sliders"/></svg></button>
+    <div id="phaseLabel" class="phase-label"></div>
+    <div id="presetBar" class="preset-bar" data-i18n-aria="presets.aria" aria-label="Готовые тренировки"></div>
+    <div class="top-right">
+      <span class="live" aria-hidden="true"><svg id="liveStomp" hidden><use href="#i-foot"/></svg><svg id="liveCmd" hidden><use href="#i-mic"/></svg></span>
+      <div id="roundLabel" class="round-label"></div>
+      <div class="chips">
+        <button id="chipVoice" class="chip" type="button"><svg><use href="#i-mic"/></svg><span class="chip-label" data-i18n="chip.voice">Голосом</span></button>
+        <button id="chipSettings" class="chip chip-icon" type="button" data-i18n-aria="settings" aria-label="Настройки"><svg><use href="#i-sliders"/></svg></button>
+      </div>
     </div>
   </header>
 
-  <div id="clockWrap"><div id="clock">2:00</div></div>
-
-  <div class="phase-row">
-    <span id="phaseLabel" class="phase-label">ГОТОВ</span>
-    <span id="nextLabel" class="next-label"></span>
+  <div class="center">
+    <!-- До старта: план тренировки, листается пальцем прямо здесь -->
+    <div id="plan" class="plan">
+      <div class="plan-item"><span class="plan-lbl" data-i18n="w.rounds">Раунды</span><div class="wheel" data-k="rounds" role="slider" data-i18n-aria="w.rounds" aria-label="Раунды"></div></div>
+      <div class="plan-item"><span class="plan-lbl" data-i18n="w.round">Раунд</span><div class="wheel" data-k="roundSec" role="slider" data-i18n-aria="w.round" aria-label="Раунд"></div></div>
+      <div class="plan-item"><span class="plan-lbl" data-i18n="w.rest">Отдых</span><div class="wheel" data-k="restSec" role="slider" data-i18n-aria="w.rest" aria-label="Отдых"></div></div>
+    </div>
+    <div id="clock" class="clock">2:00</div>
+    <div id="summary" class="summary"><div class="summary-title" data-i18n="finish">ФИНИШ</div><div class="summary-text" id="summaryText"></div></div>
   </div>
 
   <div id="bar" class="bar"><i id="barFill"></i></div>
-  <div id="pips" class="pips"></div>
 
   <div id="idleControls" class="idle-controls">
-    <button id="btnStart" class="btn btn-start" type="button"><svg><use href="#i-play"/></svg>Старт</button>
-    <p id="idleHint" class="hint"></p>
+    <div class="idle-btns">
+      <button id="btnEdit" class="btn btn-wide" type="button" data-i18n="btn.edit">Изменить</button>
+      <button id="btnStart" class="btn btn-start" type="button"><svg><use href="#i-play"/></svg><span id="startText">Старт</span></button>
+    </div>
+    <p class="hint status" id="idleStatus"><i id="idleDot" class="dot"></i><span id="idleHint"></span></p>
+  </div>
+
+  <div id="pauseControls" class="pause-controls">
+    <button id="btnResume" class="btn btn-big" type="button"><svg><use href="#i-play"/></svg><span data-i18n="btn.resume">Продолжить</span></button>
+    <button id="btnSkip" class="btn" type="button"><svg><use href="#i-skip"/></svg><span id="skipText">К отдыху</span></button>
+    <button id="btnReset" class="btn" type="button"><svg><use href="#i-reset"/></svg><span id="resetText">Сброс</span></button>
+    <button id="btnPauseSettings" class="btn btn-icon" type="button" data-i18n-aria="settings" aria-label="Настройки"><svg><use href="#i-sliders"/></svg></button>
+    <p id="pauseHint" class="hint"></p>
   </div>
 
   <div id="stompFlash" class="stomp-flash"><svg><use href="#i-foot"/></svg></div>
@@ -63,26 +84,15 @@
   <div class="dim-hint" id="dimHint">топни дважды — старт</div>
 </div>
 
-<!-- Пауза -->
-<div id="pauseLayer" class="layer pause-layer" hidden>
-  <div class="pause-title">ПАУЗА</div>
-  <div class="pause-actions">
-    <button id="btnResume" class="btn btn-big" type="button"><svg><use href="#i-play"/></svg>Продолжить</button>
-    <button id="btnSkip" class="btn" type="button"><svg><use href="#i-skip"/></svg>Дальше</button>
-    <button id="btnReset" class="btn" type="button"><svg><use href="#i-reset"/></svg>Сброс</button>
-    <button id="btnPauseSettings" class="btn" type="button"><svg><use href="#i-sliders"/></svg>Настройки</button>
-  </div>
-  <p class="hint" id="pauseHint"></p>
-</div>
-
 <!-- Первое касание: iOS не включает звук и микрофон без него -->
 <div id="gate" class="layer gate">
   <div class="gate-card">
     <div class="gate-logo">2:00</div>
-    <h1>Боксёрский таймер</h1>
-    <p id="gateText">Нажми один раз — iPhone разрешит звук, голос и датчики для топота.</p>
-    <button id="btnGate" class="btn btn-start" type="button">Включить</button>
-    <p class="hint small">Включи блокировку поворота в Пункте управления — таймер сам останется горизонтальным.</p>
+    <h1 data-i18n="app.title">Боксёрский таймер</h1>
+    <p id="gateText" data-i18n="gate.text">Нажми один раз — iPhone разрешит звук, голос и датчики для топота.</p>
+    <button id="btnGate" class="btn btn-start" type="button" data-i18n="gate.btn">Включить</button>
+    <p class="hint small" data-i18n="gate.rot">Включи блокировку поворота в Пункте управления — таймер сам останется горизонтальным.</p>
+    <div class="seg seg-lang" data-lang-seg><button data-v="ru" type="button">Русский</button><button data-v="en" type="button">English</button></div>
   </div>
 </div>
 
@@ -90,10 +100,10 @@
 <div id="voiceLayer" class="layer voice-layer" hidden>
   <div class="voice-card">
     <div class="voice-orb"><svg><use href="#i-mic"/></svg></div>
-    <p class="voice-prompt" id="voicePrompt">Говори: «10 раундов по 2 минуты, отдых минута»</p>
+    <p class="voice-prompt" id="voicePrompt" data-i18n="vl.prompt">Говори: «10 раундов по 2 минуты, отдых минута»</p>
     <p class="voice-text" id="voiceText"></p>
     <p class="voice-result" id="voiceResult"></p>
-    <button id="btnVoiceClose" class="btn" type="button">Готово</button>
+    <button id="btnVoiceClose" class="btn" type="button" data-i18n="btn.done">Готово</button>
   </div>
 </div>
 
@@ -102,93 +112,105 @@
   <div class="cal-card">
     <div class="cal-step" id="calStep">Шаг 1 из 2</div>
     <div class="cal-title" id="calTitle">Топни 5 раз</div>
-    <div class="cal-sub" id="calSub">по одному, с паузой около секунды — как будешь запускать таймер</div>
+    <div class="cal-sub" id="calSub"></div>
     <div class="cal-dots" id="calDots"></div>
     <div class="cal-actions">
       <button id="btnCalNext" class="btn" type="button">Дальше</button>
-      <button id="btnCalCancel" class="btn" type="button">Отмена</button>
+      <button id="btnCalCancel" class="btn" type="button" data-i18n="cl.cancel">Отмена</button>
     </div>
   </div>
 </div>
 
-<!-- Настройки -->
+<!-- Настройки: вкладки слева — нужное находится сразу, без прокрутки всего подряд -->
 <div id="settings" class="layer sheet" hidden>
-  <div class="sheet-head">
-    <h2>Настройки</h2>
-    <button id="btnSettingsClose" class="icon-btn" type="button" aria-label="Закрыть"><svg><use href="#i-close"/></svg></button>
-  </div>
-  <div class="sheet-body">
-    <section>
-      <h3>Пресеты</h3>
-      <div id="presets" class="presets"></div>
-    </section>
+  <nav class="sheet-nav" data-i18n-aria="settings" aria-label="Настройки">
+    <h2 data-i18n="settings">Настройки</h2>
+    <button class="tab" data-tab="workout" type="button"><svg><use href="#i-timer"/></svg><span data-i18n="tab.workout">Тренировка</span></button>
+    <button class="tab" data-tab="sound" type="button"><svg><use href="#i-sound"/></svg><span data-i18n="tab.sound">Звук</span></button>
+    <button class="tab" data-tab="hands" type="button"><svg><use href="#i-foot"/></svg><span data-i18n="tab.hands">Без рук</span></button>
+    <button class="tab" data-tab="general" type="button"><svg><use href="#i-screen"/></svg><span data-i18n="tab.general">Общее</span></button>
+  </nav>
+  <div class="sheet-main">
+    <div class="sheet-head">
+      <h3 id="tabTitle"></h3>
+      <button id="btnSettingsClose" class="btn btn-done" type="button" data-i18n="btn.done">Готово</button>
+    </div>
+    <div class="sheet-body" id="sheetBody">
+      <section data-tab="workout">
+        <div id="steppers" class="wheels"></div>
+        <p class="hint small left" data-i18n-html="workout.hint"></p>
+      </section>
 
-    <section>
-      <h3>Время</h3>
-      <div id="steppers" class="steppers"></div>
-    </section>
+      <section data-tab="sound">
+        <label class="row"><span><span data-i18n="opt.voice">Голосовой помощник</span> <em data-i18n="opt.voice.sub"></em></span><input type="checkbox" id="optVoice" class="switch"></label>
+        <div id="voiceOpts">
+          <div class="chips-row" id="voiceChips" role="radiogroup" data-i18n-aria="voice.aria" aria-label="Голос"></div>
+          <p class="hint small left" id="voiceStatus"></p>
+          <label class="row"><span data-i18n="opt.count">Считать вслух 5…1 в конце раунда</span><input type="checkbox" id="optCount" class="switch"></label>
+        </div>
+        <label class="row"><span data-i18n="opt.half">Сигнал «Половина» в середине раунда</span><input type="checkbox" id="optHalf" class="switch"></label>
+        <label class="row"><span data-i18n="opt.volume">Громкость</span><input type="range" id="optVolume" min="0.4" max="2" step="0.05"></label>
+        <div class="field-lbl" data-i18n="test">Проверить звук</div>
+        <div class="sound-test">
+          <button class="btn btn-small" data-sound="bellStart" type="button" data-i18n="test.start">Старт</button>
+          <button class="btn btn-small" data-sound="clapper" type="button" data-i18n="test.10">10 сек</button>
+          <button class="btn btn-small" data-sound="gongEnd" type="button" data-i18n="test.end">Конец</button>
+          <button class="btn btn-small" data-sound="voice" type="button" data-i18n="test.voice">Голос</button>
+        </div>
+      </section>
 
-    <section>
-      <h3>Голос и звук</h3>
-      <label class="row"><span>Голосовой помощник</span><input type="checkbox" id="optVoice" class="switch"></label>
-      <label class="row"><span>Голос</span><select id="optVoiceName"></select></label>
-      <p class="hint small left" id="voiceStatus"></p>
-      <label class="row"><span>Громкость</span><input type="range" id="optVolume" min="0.4" max="2" step="0.05"></label>
-      <label class="row"><span>Громче в раунде <em>микрофон на время раунда выключается</em></span><input type="checkbox" id="optLoud" class="switch"></label>
-      <label class="row"><span>Считать вслух 5…1 в конце раунда</span><input type="checkbox" id="optCount" class="switch"></label>
-      <label class="row"><span>Сигнал «Половина» в середине раунда</span><input type="checkbox" id="optHalf" class="switch"></label>
-      <div class="row sound-test">
-        <button class="btn btn-small" data-sound="bellStart" type="button">Старт раунда</button>
-        <button class="btn btn-small" data-sound="clapper" type="button">10 секунд</button>
-        <button class="btn btn-small" data-sound="gongEnd" type="button">Конец раунда</button>
-        <button class="btn btn-small" data-sound="voice" type="button">Голос</button>
-      </div>
-    </section>
+      <section data-tab="hands">
+        <div class="field-lbl" data-i18n="hands.stomp">Старт и пауза топотом</div>
+        <div class="seg" id="stompMode">
+          <button data-v="off" type="button" data-i18n="sm.off">Выкл</button>
+          <button data-v="mic" type="button" data-i18n="sm.mic">Микрофон</button>
+          <button data-v="motion" type="button" data-i18n="sm.motion">Датчик</button>
+          <button data-v="both" type="button" data-i18n="sm.both">Оба</button>
+        </div>
+        <p class="hint small left" id="stompModeHint"></p>
+        <div id="stompOpts">
+          <div class="seg" id="stompPattern">
+            <button data-v="single" type="button" data-i18n="sp.single">Один топ</button>
+            <button data-v="double" type="button" data-i18n="sp.double">Двойной топ</button>
+          </div>
+          <div class="field-lbl" data-i18n="during">Пауза топотом во время тренировки</div>
+          <div class="seg" id="stompDuring">
+            <button data-v="none" type="button" data-i18n="du.none">Нет</button>
+            <button data-v="rest" type="button" data-i18n="du.rest">В отдыхе</button>
+            <button data-v="all" type="button" data-i18n="du.all">Всегда</button>
+          </div>
+          <p class="hint small left" id="stompDuringHint"></p>
+          <div class="cal-row">
+            <div class="cal-info"><b data-i18n="cal.title">Обучить под свой топот</b><span id="calText"></span></div>
+            <button id="btnCal" class="btn btn-small btn-accent" type="button" data-i18n="cal.btn">Обучить</button>
+            <button id="btnCalReset" class="btn btn-small" type="button" hidden data-i18n="reset">Сброс</button>
+          </div>
+          <label class="row"><span data-i18n="opt.sens">Чувствительность</span><input type="range" id="optSens" min="0" max="1" step="0.01"></label>
+          <div class="meter-wrap">
+            <div class="meter"><i id="meterFill"></i><b id="meterThr"></b></div>
+            <span class="meter-count" id="meterCount"></span>
+          </div>
+        </div>
+        <div id="commandsSection">
+          <label class="row"><span><span data-i18n="opt.cmd">Голосовые команды</span> <span class="tag" data-i18n="beta">бета</span> <em data-i18n="opt.cmd.sub"></em></span><input type="checkbox" id="optCommands" class="switch"></label>
+        </div>
+      </section>
 
-    <section>
-      <h3>Старт топотом</h3>
-      <div class="seg" id="stompMode">
-        <button data-v="off" type="button">Выкл</button>
-        <button data-v="mic" type="button">Микрофон</button>
-        <button data-v="motion" type="button">Датчик</button>
-        <button data-v="both" type="button">Оба</button>
-      </div>
-      <p class="hint small left" id="stompModeHint"></p>
-      <div class="seg" id="stompPattern">
-        <button data-v="single" type="button">Один топ</button>
-        <button data-v="double" type="button">Двойной топ</button>
-      </div>
-      <div class="cal-row" id="calRow">
-        <div class="cal-info"><b>Обучить под свой топот</b><span id="calText"></span></div>
-        <button id="btnCal" class="btn btn-small btn-accent" type="button">Обучить</button>
-        <button id="btnCalReset" class="btn btn-small" type="button" hidden>Сброс</button>
-      </div>
-      <label class="row"><span>Слушать топот во время раунда (пауза)</span><input type="checkbox" id="optStompRound" class="switch"></label>
-      <label class="row"><span>Чувствительность</span><input type="range" id="optSens" min="0" max="1" step="0.01"></label>
-      <div class="meter-wrap">
-        <div class="meter"><i id="meterFill"></i><b id="meterThr"></b></div>
-        <span class="meter-count" id="meterCount">топни — проверим</span>
-      </div>
-    </section>
-
-    <section>
-      <h3>Экран и батарея</h3>
-      <label class="row"><span>Перевернуть экран на 180°</span><input type="checkbox" id="optFlip" class="switch"></label>
-      <label class="row"><span>Экономный экран <em>чёрный фон, цветные цифры</em></span><input type="checkbox" id="optEco" class="switch"></label>
-      <label class="row"><span>Гасить картинку в ожидании через 2 мин <em>экран не выключается, топот работает</em></span><input type="checkbox" id="optDim" class="switch"></label>
-    </section>
-
-    <section>
-      <h3>Голосовые команды <span class="tag">бета</span></h3>
-      <label class="row"><span>Слушать «старт», «пауза», «дальше», «сброс»</span><input type="checkbox" id="optCommands" class="switch"></label>
-      <p class="hint small left" id="commandsHint"></p>
-    </section>
+      <section data-tab="general">
+        <div class="field-lbl" data-i18n="opt.lang">Язык</div>
+        <div class="seg seg-lang" data-lang-seg><button data-v="ru" type="button">Русский</button><button data-v="en" type="button">English</button></div>
+        <label class="row"><span><span data-i18n="opt.flip">Перевернуть на 180°</span> <em data-i18n="opt.flip.sub"></em></span><input type="checkbox" id="optFlip" class="switch"></label>
+        <label class="row"><span><span data-i18n="opt.eco">Экономный экран</span> <em data-i18n="opt.eco.sub"></em></span><input type="checkbox" id="optEco" class="switch"></label>
+        <label class="row"><span><span data-i18n="opt.dim">Гасить в ожидании через 2 мин</span> <em data-i18n="opt.dim.sub"></em></span><input type="checkbox" id="optDim" class="switch"></label>
+      </section>
+    </div>
   </div>
 </div>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </div>
 
+<script src="i18n.js"></script>
 <script src="parse.js"></script>
 <script src="detect.js"></script>
 <script src="voice-phrases.js"></script>

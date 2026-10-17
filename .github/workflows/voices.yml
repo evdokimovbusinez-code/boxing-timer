@@ -38,12 +38,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/piper-models
-          key: piper-ru-medium-v1
+          key: piper-ru-en-medium-v2
 
       - name: Озвучка
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
+          VOICER_API_KEY: ${{ secrets.VOICER_API_KEY }}
+          VOICER_VOICE_ID: ${{ vars.VOICER_VOICE_ID }}
         run: python tools/gen_voices.py
 
       - name: Коммит

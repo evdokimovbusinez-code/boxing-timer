@@ -1,27 +1,45 @@
 {
  "voices": [
   {
+   "id": "voicer",
+   "label": "Артём",
+   "engine": "voicer",
+   "lang": "ru",
+   "count": 111
+  },
+  {
    "id": "dmitri",
    "label": "Дмитрий",
    "engine": "piper",
+   "lang": "ru",
    "count": 111
   },
   {
    "id": "ruslan",
    "label": "Руслан",
    "engine": "piper",
+   "lang": "ru",
    "count": 111
   },
   {
    "id": "denis",
    "label": "Денис",
    "engine": "piper",
+   "lang": "ru",
    "count": 111
   },
   {
    "id": "irina",
    "label": "Ирина",
    "engine": "piper",
+   "lang": "ru",
+   "count": 111
+  },
+  {
+   "id": "voicer-en",
+   "label": "Artem",
+   "engine": "voicer",
+   "lang": "en",
    "count": 111
   }
  ]
