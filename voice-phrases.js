@@ -37,8 +37,14 @@
   var WARN = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]; // все значения колеса «Сигнал за»
 
   /** Фразы на языке lang ('ru' по умолчанию или 'en'). id одинаковые — приложению всё равно, на каком языке файл. */
+  // Задания тренера для режима «Груша» — из programs.js (там же, где программы, чтобы словарь не разъехался).
+  var BP = root.BoxPrograms || (typeof require === 'function' ? require('./programs.js') : null);
+
   function list(lang) {
-    if (lang === 'en') return listEn();
+    return (lang === 'en' ? listEn() : listRu()).concat(BP ? BP.phrases(lang === 'en' ? 'en' : 'ru') : []);
+  }
+
+  function listRu() {
     var out = [];
     function add(id, text) { out.push({ id: id, text: text }); }
     add('prep', 'Приготовиться!');
