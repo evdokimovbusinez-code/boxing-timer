@@ -368,6 +368,7 @@ body[data-phase="idle"] .phase-label, body[data-phase="done"] .phase-label { dis
 .cols:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .group { background: var(--panel); border-radius: 14px; padding: 0 14px; margin-bottom: 12px; }
 .group > .row + .row { border-top: 1px solid var(--line); }
+.cols > div > :last-child { margin-bottom: 0; }
 .group-lbl { font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 4px 6px; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 6px 0; font-size: 16px; line-height: 1.25; }
 .row > span { min-width: 0; }
@@ -375,6 +376,10 @@ body[data-phase="idle"] .phase-label, body[data-phase="done"] .phase-label { dis
 .row em:empty { display: none; }
 .row input[type="range"] { flex: none; width: 46%; accent-color: var(--accent); }
 .row-btns { flex: none; display: flex; gap: 8px; }
+.row-link { justify-content: flex-start; color: inherit; text-decoration: none; cursor: pointer; }
+.row-link > span { flex: 1; }
+.row-link .heart { font-size: 22px; color: var(--accent); }
+.row-link .chev { font-size: 24px; font-weight: 400; color: var(--muted); }
 /* Выпадающий список: текущее значение и стрелка; на iPhone открывает системное меню */
 .pick {
   appearance: none; -webkit-appearance: none; flex: none; max-width: 52%; min-height: 38px; margin: 0;

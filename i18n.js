@@ -46,6 +46,7 @@
       'meter.first': '1-й топ… давай второй', 'meter.try': 'топни — проверим', 'meter.noLow': 'не похоже на топот (нет низа)',
       'meter.model': 'модель: {verdict} {p}%', 'meter.yes': 'топ', 'meter.no': 'не топ', 'meter.hits': 'Сработало: {n}',
 
+      'don.title': 'Поддержать разработчика', 'don.sub': 'без рекламы — на кофе автору',
       'tab.workout': 'Тренировка', 'tab.sound': 'Звук',
       'tab.hands': 'Без рук', 'tab.general': 'Общее',
 
@@ -161,6 +162,7 @@
       'meter.first': '1st stomp… now the second', 'meter.try': 'stomp to test', 'meter.noLow': 'not a stomp (no bass)',
       'meter.model': 'model: {verdict} {p}%', 'meter.yes': 'stomp', 'meter.no': 'not a stomp', 'meter.hits': 'Triggered: {n}',
 
+      'don.title': 'Support the developer', 'don.sub': 'free, no ads — buy me a coffee',
       'tab.workout': 'Workout', 'tab.sound': 'Sound',
       'tab.hands': 'Hands-free', 'tab.general': 'General',
 
