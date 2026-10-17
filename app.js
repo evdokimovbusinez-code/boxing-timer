@@ -9,7 +9,7 @@
   /* ================= Настройки ================= */
   var DEFAULTS = {
     rounds: 10, roundSec: 120, restSec: 60, prepSec: 10, warnSec: 10,
-    lang: 'ru', voice: true, voiceId: 'dmitri', voiceIdEn: 'en-ryan', sysVoiceURI: '', volume: 1.4, loudRounds: true,
+    lang: 'ru', voice: true, voiceId: 'voicer', voiceIdEn: 'voicer-en', voiceRev: 2, sysVoiceURI: '', volume: 1.4, loudRounds: true,
     countVoice: false, halfVoice: false,
     stompMode: 'mic', stompPattern: 'double', stompInRound: false, sens: 0.55,
     calMic: null, calMotion: null, stompModel: null,
@@ -27,6 +27,8 @@
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   if (saved) Object.assign(S, saved);
+  // Голос Артёма стал основным: кто был на прежнем голосе по умолчанию (Дмитрий), переходит на него один раз.
+  if (saved && !saved.voiceRev) { if (S.voiceId === 'dmitri') S.voiceId = 'voicer'; S.voiceRev = 2; }
   // Язык: у тех, кто уже пользовался, — русский как был; новому — по языку телефона.
   if (!saved || !saved.lang) S.lang = saved ? 'ru' : (/^ru|^uk|^be|^kk/i.test(navigator.language || 'ru') ? 'ru' : 'en');
   /** Текст интерфейса на текущем языке. */

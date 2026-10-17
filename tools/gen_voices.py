@@ -7,11 +7,16 @@
   * Piper (бесплатно, офлайн-модели): ru — dmitri, ruslan, denis, irina; en — en-ryan, en-joe, en-alan, en-amy.
   * ElevenLabs (по желанию): если задан секрет ELEVENLABS_API_KEY, добавляются «eleven» (ru) и «eleven-en» (en).
     Голос выбирается переменной ELEVENLABS_VOICE_ID.
+  * Voicer (voicer.mat3u.com): если задан секрет VOICER_API_KEY — «voicer» (ru) и «voicer-en» (en).
+    Голос — VOICER_VOICE_ID (ID голоса ElevenLabs, по умолчанию Artem Lebedev), озвучка через его клон в Cartesia.
 
 Повторный запуск озвучивает только новые или изменённые фразы (сверяет текст в manifest.json).
 """
+import io
 import json
 import os
+import time
+import zipfile
 import subprocess
 import sys
 import tempfile
@@ -157,6 +162,89 @@ def gen_eleven_lang(key, lang, vid, items):
     print(f"{vid}: {made} new, {len(clips)} total")
 
 
+VOICER = "https://voicer.mat3u.com"
+VOICER_DEFAULT_VOICE = "rQOBu7YxCDxGiFdTm28w"  # Artem Lebedev — голос владельца
+
+
+def voicer_call(key, method, path, body=None, timeout=120):
+    req = urllib.request.Request(
+        VOICER + path, data=json.dumps(body).encode() if body is not None else None, method=method,
+        # Cloudflare сервиса режет стандартный User-Agent urllib (ошибка 1010) — представляемся сами.
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", "User-Agent": "boxing-timer-voices/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+
+
+def gen_voicer():
+    key = os.environ.get("VOICER_API_KEY")
+    if not key:
+        print("Voicer: секрет VOICER_API_KEY не задан — пропускаю")
+        return
+    labs_id = os.environ.get("VOICER_VOICE_ID") or VOICER_DEFAULT_VOICE
+    # Голос из библиотеки ElevenLabs озвучивается клоном в Cartesia; клоном же — и на английском (language=en).
+    st, b = voicer_call(key, "GET", f"/v2/voices/cartesia/from-labs/{labs_id}")
+    info = json.loads(b) if st == 200 else {}
+    clone = (info.get("mine") or info.get("catalog") or {}).get("voice_id") or labs_id
+    name = info.get("name", "Voicer").split(" - ")[0]
+    for lang, vid in (("ru", "voicer"), ("en", "voicer-en")):
+        try:
+            gen_voicer_lang(key, labs_id, clone, name, lang, vid, phrases(lang))
+        except Exception as e:  # noqa: BLE001
+            print(f"{vid}: ОШИБКА, пропускаю — {e}", flush=True)
+
+
+def gen_voicer_lang(key, labs_id, clone, name, lang, vid, items):
+    vdir = VOICES_DIR / vid
+    vdir.mkdir(parents=True, exist_ok=True)
+    old = load_manifest(vdir)
+    same = old.get("voice_id") == labs_id
+    todo = [it for it in items if not (same and old["clips"].get(it["id"]) == it["text"] and (vdir / f"{it['id']}.mp3").exists())]
+    clips = {it["id"]: it["text"] for it in items if it not in todo}
+    if todo:
+        # Одна задача на все фразы: каждая строка — свой чанк, в ответе ZIP с MP3 на каждый (0000.mp3, 0001.mp3…).
+        st, b = voicer_call(key, "POST", "/v2/tasks", {
+            "text": "\n".join(it["text"] for it in todo), "voice_id": clone, "engine": "cartesia", "language": lang,
+            "split_type": "paragraphs", "split_output": True,
+        })
+        if st != 202:
+            raise RuntimeError(f"создание задачи: {st} {b[:300]!r}")
+        task = json.loads(b)
+        if task["chunks_count"] != len(todo):
+            raise RuntimeError(f"чанков {task['chunks_count']}, а фраз {len(todo)}")
+        tid = task["task_id"]
+        print(f"{vid}: задача {tid}, {task['charged_characters']} символов", flush=True)
+        while True:
+            st, b = voicer_call(key, "GET", f"/v2/tasks/{tid}")
+            t = json.loads(b)
+            if t["status"] in ("pending", "processing", "pending_confirmation"):
+                time.sleep(3)
+                continue
+            break
+        if t["status"] != "completed":
+            raise RuntimeError(f"задача {t['status']}: {t.get('error')} {t.get('blocked_chunks')}")
+        st, z = voicer_call(key, "GET", f"/v2/tasks/{tid}/download", timeout=600)
+        if st != 200:
+            raise RuntimeError(f"скачивание: {st}")
+        zf = zipfile.ZipFile(io.BytesIO(z))
+        names = sorted(n for n in zf.namelist() if n.endswith(".mp3"))
+        if len(names) != len(todo):
+            raise RuntimeError(f"в архиве {len(names)} файлов, а фраз {len(todo)}")
+        for it, n in zip(todo, names):
+            with tempfile.NamedTemporaryFile(suffix=".mp3") as tmp:
+                tmp.write(zf.read(n)); tmp.flush()
+                to_mp3(Path(tmp.name), vdir / f"{it['id']}.mp3")
+            clips[it["id"]] = it["text"]
+    save_manifest(vdir, name if labs_id != VOICER_DEFAULT_VOICE else ("Артём" if lang == "ru" else "Artem"), "voicer", clips, lang)
+    data = json.loads((vdir / "manifest.json").read_text("utf-8"))
+    data["voice_id"] = labs_id
+    (vdir / "manifest.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), "utf-8")
+    print(f"{vid}: {len(todo)} new, {len(clips)} total", flush=True)
+
+
 def write_index():
     voices = []
     for vdir in sorted(VOICES_DIR.iterdir()):
@@ -165,8 +253,8 @@ def write_index():
             d = json.loads(m.read_text("utf-8"))
             voices.append({"id": vdir.name, "label": d.get("label", vdir.name), "engine": d.get("engine"),
                            "lang": d.get("lang", "ru"), "count": len(d["clips"])})
-    order = {"eleven": 0, "dmitri": 1, "ruslan": 2, "denis": 3, "irina": 4,
-             "eleven-en": 10, "en-ryan": 11, "en-joe": 12, "en-alan": 13, "en-amy": 14}
+    order = {"voicer": 0, "eleven": 1, "dmitri": 2, "ruslan": 3, "denis": 4, "irina": 5,
+             "voicer-en": 10, "eleven-en": 11, "en-ryan": 12, "en-joe": 13, "en-alan": 14, "en-amy": 15}
     voices.sort(key=lambda v: order.get(v["id"], 9))
     (VOICES_DIR / "index.json").write_text(json.dumps({"voices": voices}, ensure_ascii=False, indent=1), "utf-8")
     print("index:", [v["id"] for v in voices])
@@ -178,4 +266,5 @@ if __name__ == "__main__":
     if "--no-piper" not in sys.argv:
         gen_piper()
     gen_eleven()
+    gen_voicer()
     write_index()

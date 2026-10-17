@@ -38,6 +38,10 @@
   у голоса в `voices/index.json` есть `lang`.
 - `tools/gen_voices.py` + `.github/workflows/voices.yml` — озвучка в GitHub Actions: Piper ru (dmitri, ruslan, denis, irina) и en (en-ryan, en-joe, en-alan, en-amy);
   ElevenLabs — если в репо есть секрет `ELEVENLABS_API_KEY` (+ переменная `ELEVENLABS_VOICE_ID`). Запускается сам при изменении фраз.
+  **Основной голос — «Артём» (voicer, voicer-en)**: Voicer API (voicer.mat3u.com, документация /docs.json), голос ElevenLabs
+  `rQOBu7YxCDxGiFdTm28w` через его клон в Cartesia; английский — тем же клоном с `language: en`. Секрет `VOICER_API_KEY`
+  (ключ — только в секрете, не в репо). Одна задача на язык: `split_type: paragraphs` + `split_output` → ZIP по фразам.
+  Cloudflare сервиса режет User-Agent urllib — свой UA обязателен. Повторная генерация берёт только изменённые фразы.
 - `parse.js` — разбор фраз и команд на русском и английском («10 раундов по 2 минуты, отдых минута» / «10 rounds of 2 minutes, rest 1 minute»).
 - `i18n.js` — все тексты интерфейса, ru и en (`L('ключ', {n})` в `app.js`; в разметке `data-i18n`, `data-i18n-html`, `data-i18n-aria`).
   **Любая новая строка — сразу в оба языка** (тест проверяет, что ключи совпадают). Язык — `S.lang`; голос свой для каждого языка (`voiceId`/`voiceIdEn`).
