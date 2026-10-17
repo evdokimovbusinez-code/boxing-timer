@@ -276,6 +276,34 @@
   };
   if (Voice.supported) speechSynthesis.onvoiceschanged = function () { Voice.loadSystem(); UI.fillVoices(); };
 
+  /* ================= Хаптика: отклик на касание ================= */
+  // Вибрации из веба на iPhone нет. Но iOS 18+ даёт системный «тик» Taptic Engine, когда пользователь
+  // переключает <input switch> — поэтому в обработчиках касаний «щёлкаем» скрытый переключатель.
+  // Работает только в ответ на касание; без него iOS молчит. На Android — navigator.vibrate.
+  var Haptic = {
+    el: null, last: 0,
+    ios: 'switch' in document.createElement('input'),
+    init: function () {
+      if (!this.ios || this.el) return;
+      var l = document.createElement('label'), i = document.createElement('input');
+      i.type = 'checkbox'; i.setAttribute('switch', ''); i.id = 'hapticSwitch'; i.tabIndex = -1;
+      l.setAttribute('aria-hidden', 'true'); l.style.display = 'none';
+      l.appendChild(i); document.body.appendChild(l);
+      this.el = l;
+    },
+    /** tick — шаг колеса, tap — кнопка, strong — старт, пауза, сброс (двойной тик). */
+    play: function (kind) {
+      var t = now();
+      if (kind === 'tick' && t - this.last < 35) return;
+      this.last = t;
+      if (navigator.vibrate) { try { navigator.vibrate(kind === 'strong' ? [18, 70, 18] : kind === 'tick' ? 6 : 12); } catch (e) {} return; }
+      if (!this.el) return;
+      this.el.click();
+      if (kind === 'strong') { var l = this.el; setTimeout(function () { l.click(); }, 110); }
+    }
+  };
+  Haptic.init();
+
   /* ================= Экран не гаснет вообще ================= */
   var Wake = {
     lock: null, video: null, pending: false,
@@ -951,7 +979,7 @@
   /* ================= Колесо настройки: листаем пальцем, как будильник в iPhone ================= */
   // d — {k, f}: ключ настройки и формат. Значения — P.choices(k). onChange вызывается на каждом шаге.
   function makeWheel(el, d, onChange) {
-    var W = { pos: 0, target: 0, list: [], items: [], drag: null, anim: 0 };
+    var W = { pos: 0, target: 0, list: [], items: [], drag: null, anim: 0, ticked: null };
     for (var j = 0; j < 7; j++) { var it = document.createElement('span'); it.className = 'wheel-item'; el.appendChild(it); W.items.push(it); }
     var row = function () { return el.offsetHeight * 0.36 || 40; };
     // Ось «вверх-вниз» экрана в координатах окна: в портрете #root повёрнут, свайп тоже надо повернуть.
@@ -977,7 +1005,12 @@
     };
     W.commit = function () {
       var v = W.list[clampIdx(W.pos)];
-      if (S[d.k] !== v) { S[d.k] = v; onChange(); }
+      if (S[d.k] !== v) {
+        S[d.k] = v;
+        if (W.ticked !== v) Haptic.play('tick'); // одно значение — один тик
+        W.ticked = v;
+        onChange();
+      }
     };
     W.sync = function () {
       if (W.drag || W.anim) return;
@@ -1026,7 +1059,9 @@
         // Касание соседнего значения — шаг на одно.
         var b = el.getBoundingClientRect();
         var off = (e.clientX - (b.left + b.width / 2)) * g.ax[0] + (e.clientY - (b.top + b.height / 2)) * g.ax[1];
-        W.animTo(g.base + (off > row() / 2 ? 1 : off < -row() / 2 ? -1 : 0));
+        var dir = off > row() / 2 ? 1 : off < -row() / 2 ? -1 : 0, to = W.list[clampIdx(g.base + dir)];
+        if (to !== S[d.k]) { Haptic.play('tick'); W.ticked = to; } // тик сразу, пока идёт касание
+        W.animTo(g.base + dir);
         return;
       }
       // Бросок: скорость за последние ~100 мс, колесо докручивается по инерции.
@@ -1404,9 +1439,18 @@
   $('stage').addEventListener('click', function (e) {
     UI.wake();
     if (e.target.closest('button, .pause-controls')) return;
-    if (Timer.running()) { if (Timer.paused) Timer.resume(); else Timer.pause(); }
+    if (Timer.running()) { Haptic.play('strong'); if (Timer.paused) Timer.resume(); else Timer.pause(); }
   });
   $('dim').addEventListener('click', function () { UI.wake(); });
+  // Тик на каждую кнопку, переключатель и список. Главные действия — двойной тик.
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t.id === 'hapticSwitch') return;
+    var b = t.closest && t.closest('button, input[type="checkbox"], select');
+    if (!b || b.disabled) return;
+    var strong = b.id === 'btnStart' || b.id === 'btnResume' || b.id === 'btnGate' || (b.id === 'btnReset' && b.classList.contains('confirm'));
+    Haptic.play(strong ? 'strong' : 'tap');
+  }, true);
   $('btnResume').onclick = function () { Timer.resume(); };
   $('btnSkip').onclick = function () { Timer.skip(); };
   $('btnReset').onclick = function () { if (this.classList.contains('confirm')) Timer.reset(); else UI.resetConfirm(true); };
