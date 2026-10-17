@@ -1,0 +1,80 @@
+name: Приложение для iPhone
+
+# Собирает приложение «Раунды» (обёртка Capacitor над сайтом, папка ios/) без подписи — подписывает SideStore
+# твоим Apple ID при установке. На main выкладывает Rounds.ipa и источник apps.json в GitHub Release;
+# в SideStore добавлен источник .../releases/latest/download/apps.json — обновление появится там само.
+# На PR — только проверка, что собирается (.ipa — в артефактах запуска).
+on:
+  push:
+    branches: [main]
+    paths: ['*.js', '*.html', '*.css', 'manifest.webmanifest', 'icons/**', 'media/**', 'voices/**', 'ios/**',
+            'package.json', 'package-lock.json', 'capacitor.config.json', 'tools/www.sh', 'tools/sidestore_source.py',
+            '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', 'package.json', 'package-lock.json', 'capacitor.config.json', 'tools/www.sh', 'app.js',
+            'tools/sidestore_source.py', '.github/workflows/ios.yml']
+  # Озвучка коммитит mp3 от имени бота — такой push других workflow не запускает, поэтому ловим её окончание.
+  workflow_run:
+    workflows: ['Озвучка голосом Артёма']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || '' }}
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Сайт → www → ios
+        run: npm ci && npm run sync
+
+      - name: Сборка без подписи
+        run: |
+          VERSION="1.0.${{ github.run_number }}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            build | tail -n 40
+          test -d build/dd/Build/Products/Release-iphoneos/App.app
+          mkdir -p build/Payload
+          cp -R build/dd/Build/Products/Release-iphoneos/App.app build/Payload/
+          (cd build && zip -qry Rounds.ipa Payload)
+          ls -lh build/Rounds.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rounds-ipa
+          path: build/Rounds.ipa
+
+      - name: Релиз для SideStore
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="app-$VERSION"
+          URL="https://github.com/${{ github.repository }}/releases/download/$TAG/Rounds.ipa"
+          python3 tools/sidestore_source.py "$VERSION" "${{ github.run_number }}" build/Rounds.ipa "$URL" > build/apps.json
+          gh release create "$TAG" build/Rounds.ipa build/apps.json --latest \
+            --title "Раунды $VERSION" --notes "Приложение для iPhone. Ставится через SideStore: источник https://github.com/${{ github.repository }}/releases/latest/download/apps.json"

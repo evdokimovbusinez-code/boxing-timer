@@ -5,6 +5,8 @@
   var P = window.BoxParse, D = window.BoxDetect, PH = window.BoxPhrases, I = window.BoxI18n;
   var $ = function (id) { return document.getElementById(id); };
   var now = function () { return performance.now(); };
+  // Внутри приложения для iPhone (обёртка Capacitor, папка ios/): экран, поворот и звук держит сам iOS, хаптика — нативная.
+  var NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
   /* ================= Настройки ================= */
   var DEFAULTS = {
@@ -44,7 +46,7 @@
   }
   var lerp = D.lerp;
   // Открыто «с экрана Домой» (на весь экран), а не во вкладке Safari.
-  function standalone() { return navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches); }
+  function standalone() { return NATIVE || navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches); }
 
   /* ================= Звук: громкий тракт + синтез сигналов ================= */
   var Sound = {
@@ -336,7 +338,7 @@
     last: 0,
     ios: /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
     attach: function (el) {
-      if (!this.ios || !el || (el.firstChild && el.firstChild.className === 'haptic-trigger')) return;
+      if (NATIVE || !this.ios || !el || (el.firstChild && el.firstChild.className === 'haptic-trigger')) return;
       var n = document.createElement('input');
       n.type = 'checkbox'; n.className = 'haptic-trigger'; n.setAttribute('switch', '');
       n.setAttribute('aria-hidden', 'true'); n.tabIndex = -1;
@@ -345,15 +347,25 @@
     },
     // Повторно — после смены текста кнопок (textContent стирает вложенный переключатель).
     attachAll: function () {
-      if (!this.ios) return;
+      if (NATIVE || !this.ios) return;
       document.querySelectorAll('button, .wheel, #stage, #gate').forEach(function (el) { Haptic.attach(el); });
     },
-    /** tick — шаг колеса, tap — кнопка, strong — старт, пауза, сброс. Вибрирует только Android. */
+    // В приложении — Taptic Engine напрямую: тик на каждое значение колеса, как в будильнике, и без касания тоже.
+    native: function (kind) {
+      var C = window.Capacitor, h = C.Plugins && C.Plugins.Haptics;
+      var m = kind === 'tick' ? ['selectionChanged', {}] : ['impact', { style: kind === 'strong' ? 'HEAVY' : 'LIGHT' }];
+      try {
+        var r = h && h[m[0]] ? h[m[0]](m[1]) : C.nativePromise('Haptics', m[0], m[1]);
+        if (r && r.catch) r.catch(function () {});
+      } catch (e) {}
+    },
+    /** tick — шаг колеса, tap — кнопка, strong — старт, пауза, сброс. Сайт вибрирует только на Android, приложение — везде. */
     play: function (kind) {
       var t = now();
       if (kind === 'tick' && t - this.last < 35) return;
       this.last = t;
       Stomp.touched(); // своя вибрация — тоже «тук» для микрофона и датчика
+      if (NATIVE) { this.native(kind); return; }
       if (navigator.vibrate) { try { navigator.vibrate(kind === 'strong' ? [18, 70, 18] : kind === 'tick' ? 6 : 12); } catch (e) {} }
     }
   };
@@ -370,7 +382,7 @@
       return maj < 18 || (maj === 18 && min < 4);
     })(),
     request: function () {
-      if (document.visibilityState !== 'visible') return;
+      if (NATIVE || document.visibilityState !== 'visible') return; // в приложении экран держит iOS (AppDelegate)
       var self = this;
       if ('wakeLock' in navigator && !this.lock && !this.pending) {
         this.pending = true;
@@ -1279,7 +1291,7 @@
         hint = L(on ? 'ready.unlockStomp' : 'ready.unlock');
         // Совет нужен, пока перчатки не надеты: в Safari панели съедают экран; горизонтально без блокировки — повернётся.
         if (Haptic.ios && !standalone()) sub = L('ready.home');
-        else if (matchMedia('(orientation: landscape)').matches) sub = L('gate.rot');
+        else if (!NATIVE && matchMedia('(orientation: landscape)').matches) sub = L('gate.rot');
       } else if (T.phase === 'done') {
         hint = live ? L('ready.doneStomp', { how: how }) : L('ready.done');
       } else {
@@ -1609,6 +1621,12 @@
   Clips.load(curVoice());
   UI.syncSettings();
   UI.render(true);
+  // В приложении звук разрешён без касания — таймер сразу готов, топот слышно с первой секунды.
+  // Если iOS всё же не дала звук — как на сайте: первое касание включает.
+  if (NATIVE) {
+    App.unlock();
+    setTimeout(function () { if (!Sound.ctx || Sound.ctx.state !== 'running') { App.unlocked = false; UI.renderStatus(); } }, 800);
+  }
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     var hadController = !!navigator.serviceWorker.controller;
