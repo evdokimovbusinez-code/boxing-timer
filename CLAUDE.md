@@ -34,7 +34,7 @@
 - `detect.js` — OnsetDetector (атака относительно огибающей, адаптивный фон), DoubleTap/SingleTap (защита от ритма),
   PeakCollector, `features`/`lowHigh`/`trainModel`/`predict` (логистическая регрессия «топот / не топот»).
 - `stomp-worklet.js` — детектор в AudioWorklet (грузится после `detect.js` через `audioWorklet.addModule`).
-- `voice-phrases.js` — 118 фраз на каждом языке (`list('ru'|'en')`, id одинаковые). Приложение играет `voices/voicer[-en]/<id>.mp3`.
+- `voice-phrases.js` — 84 фразы на каждом языке (`list('ru'|'en')`, id одинаковые). Приложение играет `voices/voicer[-en]/<id>.mp3`.
   **Голос один — Артём, выбора нет** (желание владельца). Всё, что таймер говорит, должно быть записью (тест проверяет);
   голос iPhone — только если записей нет вообще, иначе лучше промолчать, чем заговорить чужим голосом.
 - `tools/gen_voices.py` + `.github/workflows/voices.yml` — озвучка голосом Артёма через Voicer API (voicer.mat3u.com, /docs.json):
