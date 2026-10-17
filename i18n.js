@@ -10,7 +10,7 @@
       'presets.aria': 'Готовые тренировки',
       'chip.voice': 'Голосом', 'settings': 'Настройки',
 
-      'w.rounds': 'Раунды', 'w.round': 'Раунд', 'w.rest': 'Отдых', 'w.prep': 'Подготовка', 'w.warn': 'Сигнал за',
+      'w.rounds': 'Раунды', 'w.round': 'Раунд', 'w.rest': 'Отдых', 'w.prep': 'До старта', 'w.warn': 'Сигнал до конца',
       'none': 'нет', 'unit.s': 'с',
 
       'ph.prep': 'ГОТОВЬСЯ', 'ph.round': 'БОКС', 'ph.rest': 'ОТДЫХ', 'ph.pause': 'ПАУЗА',
@@ -35,9 +35,8 @@
       'level.beginner': 'Новичок', 'level.amateur': 'Любитель', 'level.advanced': 'Продвинутый', 'level.pro': 'Профи',
       'plan.bag': '{goal} · {level} · {min} мин',
       'bag.desc': '{rounds} × {len} · отдых {rest} · {min} мин',
-      'bag.plan': 'Программа', 'bag.warm': 'Разминка',
+      'bag.warm': 'Разминка',
       'leg.calm': 'спокойно · колокол', 'leg.hard': 'сильно · свисток', 'leg.max': 'максимум · горн',
-      'bag.hint': 'Смотреть на телефон не нужно: тренер голосом говорит, что бить, смену темпа слышно по звуку, перед ускорением тикают часы.',
       'ready.unlock': 'Коснись экрана — включить звук', 'ready.unlockStomp': 'Коснись экрана — включить звук и топот',
       'ready.tap': 'Коснись экрана — старт', 'ready.tapStomp': 'Коснись или {how} — старт',
       'ready.done': 'Коснись — к началу', 'ready.doneStomp': '{how} — ещё раз · коснись — к началу',
@@ -47,9 +46,8 @@
       'meter.first': '1-й топ… давай второй', 'meter.try': 'топни — проверим', 'meter.noLow': 'не похоже на топот (нет низа)',
       'meter.model': 'модель: {verdict} {p}%', 'meter.yes': 'топ', 'meter.no': 'не топ', 'meter.hits': 'Сработало: {n}',
 
-      'tab.workout': 'Тренировка', 'tab.sound': 'Звук', 'tab.soundTitle': 'Звук и голос',
-      'tab.hands': 'Без рук', 'tab.handsTitle': 'Управление без рук', 'tab.general': 'Общее',
-      'workout.hint': 'Листай пальцем. <b>Подготовка</b> — время до первого раунда. <b>Сигнал за</b> — когда до конца раунда звучит «тук-тук» и «десять секунд».',
+      'tab.workout': 'Тренировка', 'tab.sound': 'Звук',
+      'tab.hands': 'Без рук', 'tab.general': 'Общее',
 
       'opt.voice': 'Голосовой помощник', 'opt.voice.sub': 'номер раунда, «10 секунд», «отдых»',
       'opt.count': 'Считать вслух 5…1 перед концом раунда и отдыха', 'opt.half': 'Сигнал «Половина» в середине раунда', 'opt.volume': 'Громкость',
@@ -127,7 +125,7 @@
       'presets.aria': 'Workout presets',
       'chip.voice': 'Voice', 'settings': 'Settings',
 
-      'w.rounds': 'Rounds', 'w.round': 'Round', 'w.rest': 'Rest', 'w.prep': 'Get ready', 'w.warn': 'Warning',
+      'w.rounds': 'Rounds', 'w.round': 'Round', 'w.rest': 'Rest', 'w.prep': 'Countdown', 'w.warn': 'Warning before end',
       'none': 'off', 'unit.s': 's',
 
       'ph.prep': 'GET READY', 'ph.round': 'BOX', 'ph.rest': 'REST', 'ph.pause': 'PAUSED',
@@ -148,13 +146,12 @@
       'mode.spar': 'Sparring', 'mode.bag': 'Heavy bag', 'bag.goal': 'What to train', 'bag.level': 'Level',
       'goal.power': 'Power', 'goal.endurance': 'Endurance', 'goal.speed': 'Speed', 'goal.burst': 'Explosive', 'goal.technique': 'Technique', 'goal.cardio': 'Cardio',
       'gsub.power': 'full-power shots', 'gsub.endurance': 'hold the pace all fight', 'gsub.speed': 'fast hands', 'gsub.burst': 'steady, then explode',
-      'gsub.technique': 'combos, defense, footwork', 'gsub.cardio': 'dense intervals',
+      'gsub.technique': 'combos, defense, feet', 'gsub.cardio': 'dense intervals',
       'level.beginner': 'Beginner', 'level.amateur': 'Amateur', 'level.advanced': 'Advanced', 'level.pro': 'Pro',
       'plan.bag': '{goal} · {level} · {min} min',
       'bag.desc': '{rounds} × {len} · rest {rest} · {min} min',
-      'bag.plan': 'Program', 'bag.warm': 'Warm-up',
+      'bag.warm': 'Warm-up',
       'leg.calm': 'steady · bell', 'leg.hard': 'hard · whistle', 'leg.max': 'all out · horn',
-      'bag.hint': 'No need to look at the phone: the coach tells you what to throw, pace changes are heard as sounds, a clock ticks before each push.',
       'ready.unlock': 'Tap the screen to turn on sound', 'ready.unlockStomp': 'Tap the screen to turn on sound and stomp',
       'ready.tap': 'Tap the screen to start', 'ready.tapStomp': 'Tap or {how} to start',
       'ready.done': 'Tap to go back', 'ready.doneStomp': '{how} to go again · tap to go back',
@@ -164,9 +161,8 @@
       'meter.first': '1st stomp… now the second', 'meter.try': 'stomp to test', 'meter.noLow': 'not a stomp (no bass)',
       'meter.model': 'model: {verdict} {p}%', 'meter.yes': 'stomp', 'meter.no': 'not a stomp', 'meter.hits': 'Triggered: {n}',
 
-      'tab.workout': 'Workout', 'tab.sound': 'Sound', 'tab.soundTitle': 'Sound & voice',
-      'tab.hands': 'Hands-free', 'tab.handsTitle': 'Hands-free control', 'tab.general': 'General',
-      'workout.hint': 'Swipe to change. <b>Get ready</b> — countdown before round one. <b>Warning</b> — when the knock and “ten seconds” play before the round ends.',
+      'tab.workout': 'Workout', 'tab.sound': 'Sound',
+      'tab.hands': 'Hands-free', 'tab.general': 'General',
 
       'opt.voice': 'Voice coach', 'opt.voice.sub': 'round number, “ten seconds”, “rest”',
       'opt.count': 'Count 5…1 out loud before round and rest end', 'opt.half': '“Halfway” signal mid-round', 'opt.volume': 'Volume',

@@ -292,67 +292,60 @@ button:active { transform: scale(.96); }
 .cal-dots i.neg { background: #4cd964; border-color: #4cd964; width: 14px; height: 14px; margin-top: 4px; }
 .cal-actions { display: flex; gap: 10px; }
 
-/* ---------- Настройки: вкладки слева, содержимое справа ---------- */
+/* ---------- Настройки: вкладки и «Готово» — одной строкой сверху, всё остальное место — содержимому ---------- */
 .sheet {
   background: var(--bg); color: var(--fg); z-index: 30;
-  display: flex; padding-top: 0; padding-bottom: 0; padding-left: calc(12px + var(--sl)); gap: 0;
+  display: flex; flex-direction: column; gap: 0;
+  padding: 0 calc(16px + var(--sx));
   animation: sheetIn .26s cubic-bezier(.2, .8, .2, 1);
 }
 .sheet.closing { animation: sheetOut .2s ease-in forwards; }
 @keyframes sheetIn { from { opacity: 0; transform: translateY(7%); } }
 @keyframes sheetOut { to { opacity: 0; transform: translateY(7%); } }
 
-.sheet-nav {
-  flex: none; width: clamp(150px, 24cqw, 210px);
-  display: flex; flex-direction: column; gap: 4px;
-  padding: calc(12px + var(--st)) 12px calc(12px + var(--sb)) 0;
-  border-right: 1px solid var(--line); overflow: auto;
-}
-.sheet-nav h2 { margin: 2px 0 10px 4px; font-size: 22px; }
+.sheet-nav { flex: none; display: flex; align-items: center; gap: 4px; padding: calc(10px + var(--st)) 0 10px; }
 .tab {
-  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 12px;
+  display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px;
   border: 0; border-radius: 12px; background: transparent; color: var(--muted);
-  font-size: 16px; font-weight: 700; text-align: left; cursor: pointer;
+  font-size: 16px; font-weight: 700; white-space: nowrap; cursor: pointer;
 }
 .tab svg { font-size: 20px; }
 .tab.on { background: var(--panel-2); color: var(--fg); }
 .tab.on svg { color: var(--accent); }
+.sheet-nav .btn-done { margin-left: auto; }
 
-.sheet-main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 0 0 0 20px; }
-.sheet-head {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: calc(12px + var(--st)) 0 10px;
-}
-.sheet-head h3 { margin: 0; font-size: 20px; }
+.sheet-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .sheet-body {
   flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-  padding: 0 0 calc(24px + var(--sb));
+  padding: 0 0 calc(12px + var(--sb));
 }
 .sheet-body > section { animation: fadeIn .18s ease-out; }
 .tag { font-size: 11px; background: var(--faint); padding: 2px 6px; border-radius: 6px; margin-left: 4px; letter-spacing: .05em; vertical-align: 2px; }
 
-/* Готовые тренировки — над колёсами в настройках: формула крупно, название мелко */
-.presets { margin: 2px 0 10px; }
-.preset { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 6px 12px; border-radius: 14px; }
-.preset b { font-family: var(--digits, inherit); font-size: 16px; color: var(--fg); font-variant-numeric: tabular-nums; }
-.preset span { font-size: 12px; }
+/* Готовые тренировки — одной строкой над колёсами: формула крупно, название под ней */
+.opts.presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 0 8px; }
+.preset { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 54px; padding: 4px 8px; border-radius: 14px; }
+.preset b { font-family: var(--digits, inherit); font-size: 18px; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.preset span { font-size: 13px; }
 
 /* Груша: режим, цель (название + что тренирует), уровень, итог программы */
-.seg-mode { margin: 2px 0 12px; }
-.seg-mode button { min-height: 46px; font-size: 16px; }
-.opts.goal-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
-.opt.goal { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 8px 12px; border-radius: 14px; text-align: left; }
+.seg-mode { margin: 0 0 8px; }
+.seg.seg-mode button { min-height: 44px; font-size: 17px; }
+.bag-cols:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.bag-cols .field-lbl:first-child { margin-top: 0; }
+.opts.goal-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 6px; }
+.opt.goal { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; min-height: 46px; padding: 3px 12px; border-radius: 14px; text-align: left; }
 .goal b { font-size: 16px; color: var(--fg); }
-.goal span { font-size: 12px; line-height: 1.2; }
-.bag-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 6px; }
-.bag-desc { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.bag-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+.goal span { font-size: 12px; line-height: 1.2; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bag-prog { background: var(--panel); border-radius: 14px; padding: 10px 12px; }
+.bag-desc { display: block; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+.bag-legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted); margin: 0 0 6px; }
 .bag-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
 .k-calm { --c: rgba(246, 244, 238, .3); } .k-hard { --c: var(--prep-hi); } .k-max { --c: var(--accent); }
-.bag-plan { list-style: none; margin: 0 0 8px; padding: 0; counter-reset: r; }
-.bag-plan li { counter-increment: r; display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 10px; padding: 4px 0; font-size: 14px; }
+.bag-plan { list-style: none; margin: 0; padding: 0; counter-reset: r; }
+.bag-plan li { counter-increment: r; display: grid; grid-template-columns: 16px 27% minmax(0, 1fr); align-items: center; gap: 8px; padding: 2px 0; font-size: 13px; }
 .bag-plan li::before { content: counter(r); color: var(--muted); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
-.bag-plan .segs { display: flex; gap: 2px; height: 14px; }
+.bag-plan .segs { display: flex; gap: 2px; height: 12px; }
 .bag-plan .segs i { flex-basis: 0; border-radius: 3px; background: var(--c); }
 .bag-plan span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bag-plan small { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 4px; }
@@ -360,10 +353,11 @@ body[data-phase="idle"] .phase-label, body[data-phase="done"] .phase-label { dis
 
 .hint:empty { display: none; }
 
-.wheels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }
+.wheels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .wheel-cell { display: flex; flex-direction: column; align-items: center; padding-top: 8px; border-radius: 14px; background: var(--panel); min-width: 0; }
-.wheel-cell .lbl { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
-.wheel-sm { width: 100%; height: min(150px, 42cqh); font-size: clamp(20px, 3.4cqw, 28px); }
+.wheel-cell .lbl { min-height: 2.4em; display: flex; align-items: center; padding: 0 6px; font-size: 14px; line-height: 1.2; font-weight: 700; color: var(--muted); text-align: center; }
+/* высота экрана минус вкладки, режим, пресеты и подпись — без прокрутки */
+.wheel-sm { width: 100%; height: clamp(96px, calc(100cqh - 224px - var(--st) - var(--sb)), 190px); font-size: clamp(24px, 3.8cqw, 32px); }
 
 .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; font-size: 16px; }
 .row > span { min-width: 0; }

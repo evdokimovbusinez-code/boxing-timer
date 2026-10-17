@@ -1476,12 +1476,10 @@
 
     /* ---- Настройки ---- */
     tab: 'workout',
-    TABS: { workout: 'tab.workout', sound: 'tab.soundTitle', hands: 'tab.handsTitle', general: 'tab.general' },
     showTab: function (t) {
       this.tab = t;
       document.querySelectorAll('.sheet-nav .tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === t); });
       document.querySelectorAll('#sheetBody > section').forEach(function (sec) { sec.hidden = sec.dataset.tab !== t; });
-      $('tabTitle').textContent = L(this.TABS[t]);
       $('sheetBody').scrollTop = 0;
       this.syncWheels(); // колёса меряют высоту — только когда видны
     },
