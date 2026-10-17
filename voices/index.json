@@ -1,0 +1,28 @@
+{
+ "voices": [
+  {
+   "id": "dmitri",
+   "label": "Дмитрий",
+   "engine": "piper",
+   "count": 111
+  },
+  {
+   "id": "ruslan",
+   "label": "Руслан",
+   "engine": "piper",
+   "count": 111
+  },
+  {
+   "id": "denis",
+   "label": "Денис",
+   "engine": "piper",
+   "count": 111
+  },
+  {
+   "id": "irina",
+   "label": "Ирина",
+   "engine": "piper",
+   "count": 111
+  }
+ ]
+}
