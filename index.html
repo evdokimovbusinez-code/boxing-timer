@@ -154,66 +154,85 @@
         </div>
       </section>
 
-      <section data-tab="sound">
-        <label class="row"><span><span data-i18n="opt.voice">Голосовой помощник</span> <em data-i18n="opt.voice.sub"></em></span><input type="checkbox" id="optVoice" class="switch" switch></label>
-        <div id="voiceOpts">
-          <p class="hint small left" id="voiceStatus"></p>
-          <label class="row"><span data-i18n="opt.count">Считать вслух 5…1 в конце раунда</span><input type="checkbox" id="optCount" class="switch" switch></label>
-        </div>
-        <label class="row"><span data-i18n="opt.half">Сигнал «Половина» в середине раунда</span><input type="checkbox" id="optHalf" class="switch" switch></label>
-        <label class="row"><span data-i18n="opt.volume">Громкость</span><input type="range" id="optVolume" min="0.4" max="2" step="0.05"></label>
-        <div class="field-lbl" data-i18n="snd.title">Сигналы</div>
-        <div class="snd-row"><span class="snd-lbl" data-i18n="snd.start">Начало раунда</span><div class="opts" data-snd="sndStart" role="radiogroup"></div></div>
-        <div class="snd-row"><span class="snd-lbl" data-i18n="snd.end">Конец раунда</span><div class="opts" data-snd="sndEnd" role="radiogroup"></div></div>
-        <div class="snd-row"><span class="snd-lbl" data-i18n="snd.warn">Перед концом раунда и отдыха</span><div class="opts" data-snd="sndWarn" role="radiogroup"></div></div>
-        <div class="snd-row"><span class="snd-lbl" data-i18n="tick.title">Тиканье в конце раунда и отдыха</span><div class="opts" id="tickOpts" role="radiogroup"></div></div>
-      </section>
-
-      <section data-tab="hands">
-        <div class="field-lbl" data-i18n="hands.stomp">Старт и пауза топотом</div>
-        <div class="seg" id="stompMode">
-          <button data-v="off" type="button" data-i18n="sm.off">Выкл</button>
-          <button data-v="mic" type="button" data-i18n="sm.mic">Микрофон</button>
-          <button data-v="motion" type="button" data-i18n="sm.motion">Датчик</button>
-          <button data-v="both" type="button" data-i18n="sm.both">Оба</button>
-        </div>
-        <p class="hint small left" id="stompModeHint"></p>
-        <div id="stompOpts">
-          <div class="seg" id="stompPattern">
-            <button data-v="single" type="button" data-i18n="sp.single">Один топ</button>
-            <button data-v="double" type="button" data-i18n="sp.double">Двойной топ</button>
+      <section data-tab="sound" class="cols">
+        <div>
+          <div class="group-lbl" data-i18n="grp.voice">Голос</div>
+          <div class="group">
+            <label class="row"><span><span data-i18n="opt.voice">Голосовой помощник</span><em data-i18n="opt.voice.sub"></em><em id="voiceStatus"></em></span><input type="checkbox" id="optVoice" class="switch" switch></label>
+            <label class="row" id="voiceOpts"><span><span data-i18n="opt.count">Счёт 5…1 вслух</span><em data-i18n="opt.count.sub"></em></span><input type="checkbox" id="optCount" class="switch" switch></label>
+            <label class="row"><span><span data-i18n="opt.half">Сигнал «Половина»</span><em data-i18n="opt.half.sub"></em></span><input type="checkbox" id="optHalf" class="switch" switch></label>
           </div>
-          <div class="field-lbl" data-i18n="during">Пауза топотом во время тренировки</div>
-          <div class="seg" id="stompDuring">
-            <button data-v="none" type="button" data-i18n="du.none">Нет</button>
-            <button data-v="rest" type="button" data-i18n="du.rest">В отдыхе</button>
-            <button data-v="all" type="button" data-i18n="du.all">Всегда</button>
-          </div>
-          <p class="hint small left" id="stompDuringHint"></p>
-          <div class="cal-row">
-            <div class="cal-info"><b data-i18n="cal.title">Обучить под свой топот</b><span id="calText"></span></div>
-            <button id="btnCal" class="btn btn-small btn-accent" type="button" data-i18n="cal.btn">Обучить</button>
-            <button id="btnCalReset" class="btn btn-small" type="button" hidden data-i18n="reset">Сброс</button>
-          </div>
-          <label class="row"><span data-i18n="opt.sens">Чувствительность</span><input type="range" id="optSens" min="0" max="1" step="0.01"></label>
-          <div class="meter-wrap">
-            <div class="meter"><i id="meterFill"></i><b id="meterThr"></b></div>
-            <span class="meter-count" id="meterCount"></span>
+          <div class="group">
+            <label class="row"><span data-i18n="opt.volume">Громкость</span><input type="range" id="optVolume" min="0.4" max="2" step="0.05"></label>
           </div>
         </div>
-        <div id="commandsSection">
-          <label class="row"><span><span data-i18n="opt.cmd">Голосовые команды</span> <span class="tag" data-i18n="beta">бета</span> <em data-i18n="opt.cmd.sub"></em></span><input type="checkbox" id="optCommands" class="switch" switch></label>
+        <div>
+          <div class="group-lbl" data-i18n="snd.title">Сигналы</div>
+          <div class="group">
+            <label class="row"><span data-i18n="snd.start">Начало раунда</span><select class="pick" data-snd="sndStart"></select></label>
+            <label class="row"><span data-i18n="snd.end">Конец раунда</span><select class="pick" data-snd="sndEnd"></select></label>
+            <label class="row"><span data-i18n="snd.warn">Перед концом раунда и отдыха</span><select class="pick" data-snd="sndWarn"></select></label>
+            <label class="row"><span data-i18n="tick.title">Тиканье в конце раунда и отдыха</span><select class="pick" id="tickPick"></select></label>
+          </div>
         </div>
       </section>
 
-      <section data-tab="general">
-        <div class="field-lbl" data-i18n="opt.lang">Язык</div>
-        <div class="seg seg-lang" data-lang-seg><button data-v="ru" type="button">Русский</button><button data-v="en" type="button">English</button></div>
-        <div class="field-lbl" data-i18n="opt.font">Шрифт цифр</div>
-        <div class="opts font-opts" id="fontOpts" role="radiogroup"></div>
-        <label class="row"><span><span data-i18n="opt.flip">Перевернуть на 180°</span> <em data-i18n="opt.flip.sub"></em></span><input type="checkbox" id="optFlip" class="switch" switch></label>
-        <label class="row"><span><span data-i18n="opt.eco">Экономный экран</span> <em data-i18n="opt.eco.sub"></em></span><input type="checkbox" id="optEco" class="switch" switch></label>
-        <label class="row"><span><span data-i18n="opt.dim">Гасить в ожидании через 2 мин</span> <em data-i18n="opt.dim.sub"></em></span><input type="checkbox" id="optDim" class="switch" switch></label>
+      <section data-tab="hands" class="cols">
+        <div>
+          <div class="group">
+            <label class="row"><span><span data-i18n="hands.stomp">Старт и пауза топотом</span><em id="stompModeHint"></em></span>
+              <select class="pick" id="stompMode">
+                <option value="off" data-i18n="sm.off">Выкл</option>
+                <option value="mic" data-i18n="sm.mic">Микрофон</option>
+                <option value="motion" data-i18n="sm.motion">Датчик</option>
+                <option value="both" data-i18n="sm.both">Оба</option>
+              </select></label>
+            <div class="row stomp-only"><span data-i18n="sp.title">Топ</span>
+              <div class="seg seg-sm" id="stompPattern">
+                <button data-v="single" type="button" data-i18n="sp.single">Один</button>
+                <button data-v="double" type="button" data-i18n="sp.double">Двойной</button>
+              </div></div>
+            <label class="row stomp-only"><span><span data-i18n="during">Пауза топотом во время тренировки</span><em id="stompDuringHint"></em></span>
+              <select class="pick" id="stompDuring">
+                <option value="none" data-i18n="du.none">Нет</option>
+                <option value="rest" data-i18n="du.rest">В отдыхе</option>
+                <option value="all" data-i18n="du.all">Всегда</option>
+              </select></label>
+          </div>
+        </div>
+        <div>
+          <div id="stompOpts">
+            <div class="group">
+              <div class="row">
+                <span><span data-i18n="cal.title">Обучить под свой топот</span><em id="calText"></em></span>
+                <span class="row-btns"><button id="btnCalReset" class="btn btn-small" type="button" hidden data-i18n="reset">Сброс</button><button id="btnCal" class="btn btn-small btn-accent" type="button" data-i18n="cal.btn">Обучить</button></span>
+              </div>
+              <label class="row"><span data-i18n="opt.sens">Чувствительность</span><input type="range" id="optSens" min="0" max="1" step="0.01"></label>
+              <div class="row meter-wrap">
+                <div class="meter"><i id="meterFill"></i><b id="meterThr"></b></div>
+                <span class="meter-count" id="meterCount"></span>
+              </div>
+            </div>
+          </div>
+          <div class="group" id="commandsSection">
+            <label class="row"><span><span data-i18n="opt.cmd">Голосовые команды</span> <span class="tag" data-i18n="beta">бета</span><em data-i18n="opt.cmd.sub"></em></span><input type="checkbox" id="optCommands" class="switch" switch></label>
+          </div>
+        </div>
+      </section>
+
+      <section data-tab="general" class="cols">
+        <div>
+          <div class="group">
+            <div class="row"><span data-i18n="opt.lang">Язык</span><div class="seg seg-sm seg-lang" data-lang-seg><button data-v="ru" type="button">Русский</button><button data-v="en" type="button">English</button></div></div>
+            <label class="row"><span><span data-i18n="opt.flip">Перевернуть на 180°</span><em data-i18n="opt.flip.sub"></em></span><input type="checkbox" id="optFlip" class="switch" switch></label>
+            <label class="row"><span><span data-i18n="opt.eco">Экономный экран</span><em data-i18n="opt.eco.sub"></em></span><input type="checkbox" id="optEco" class="switch" switch></label>
+            <label class="row"><span><span data-i18n="opt.dim">Гасить в ожидании через 2 мин</span><em data-i18n="opt.dim.sub"></em></span><input type="checkbox" id="optDim" class="switch" switch></label>
+          </div>
+        </div>
+        <div>
+          <div class="group-lbl" data-i18n="opt.font">Шрифт цифр</div>
+          <div class="opts font-opts" id="fontOpts" role="radiogroup"></div>
+        </div>
       </section>
     </div>
   </div>

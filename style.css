@@ -37,6 +37,9 @@ button { font: inherit; color: inherit; }
 svg { width: 1em; height: 1em; flex: none; }
 [hidden] { display: none !important; }
 
+/* Семисегментное табло (DSEG7 Classic Bold, OFL — fonts/DSEG-LICENSE.txt), 5 КБ, лежит рядом — работает офлайн */
+@font-face { font-family: DSEG7; src: url("fonts/DSEG7Classic-Bold.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+
 /* ---------- Корневой контейнер и принудительная горизонталь ----------
    Безопасные зоны (чёлка, полоска «Домой») задаются из JS в --sl/--sr/--st/--sb с учётом поворота. */
 #root {
@@ -158,7 +161,7 @@ body[data-phase="idle"] .plan-btn, body[data-phase="done"] .plan-btn { display: 
 /* Колесо: текущее значение по центру, соседние — блёкло выше и ниже. Тянуть, бросать, касаться соседнего. */
 .wheel {
   position: relative; overflow: hidden; touch-action: none; cursor: ns-resize;
-  font-family: var(--digits, inherit); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
   mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
 }
@@ -318,18 +321,20 @@ button:active { transform: scale(.96); }
 .sheet-body {
   flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   padding: 0 0 calc(12px + var(--sb));
+  scrollbar-width: none;
 }
+.sheet-body::-webkit-scrollbar { display: none; }
 .sheet-body > section { animation: fadeIn .18s ease-out; }
 .tag { font-size: 11px; background: var(--faint); padding: 2px 6px; border-radius: 6px; margin-left: 4px; letter-spacing: .05em; vertical-align: 2px; }
 
 /* Готовые тренировки — одной строкой над колёсами: формула крупно, название под ней */
-.opts.presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 0 8px; }
+.opts.presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0 0 10px; }
 .preset { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 54px; padding: 4px 8px; border-radius: 14px; }
-.preset b { font-family: var(--digits, inherit); font-size: 18px; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.preset b { font-size: 18px; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .preset span { font-size: 13px; }
 
 /* Груша: режим, цель (название + что тренирует), уровень, итог программы */
-.seg-mode { margin: 0 0 8px; }
+.seg-mode { margin: 0 0 10px; }
 .seg.seg-mode button { min-height: 44px; font-size: 17px; }
 .bag-cols:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .bag-cols .field-lbl:first-child { margin-top: 0; }
@@ -353,19 +358,33 @@ body[data-phase="idle"] .phase-label, body[data-phase="done"] .phase-label { dis
 
 .hint:empty { display: none; }
 
-.wheels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.wheels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .wheel-cell { display: flex; flex-direction: column; align-items: center; padding-top: 8px; border-radius: 14px; background: var(--panel); min-width: 0; }
 .wheel-cell .lbl { min-height: 2.4em; display: flex; align-items: center; padding: 0 6px; font-size: 14px; line-height: 1.2; font-weight: 700; color: var(--muted); text-align: center; }
 /* высота экрана минус вкладки, режим, пресеты и подпись — без прокрутки */
-.wheel-sm { width: 100%; height: clamp(96px, calc(100cqh - 224px - var(--st) - var(--sb)), 190px); font-size: clamp(24px, 3.8cqw, 32px); }
+.wheel-sm { width: 100%; height: clamp(96px, calc(100cqh - 230px - var(--st) - var(--sb)), 190px); font-size: clamp(24px, 3.8cqw, 32px); }
 
-.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; font-size: 16px; }
+/* Настройки как в iPhone: две колонки карточек, в карточке строки «название слева — управление справа» */
+.cols:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.group { background: var(--panel); border-radius: 14px; padding: 0 14px; margin-bottom: 12px; }
+.group > .row + .row { border-top: 1px solid var(--line); }
+.group-lbl { font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 4px 6px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 6px 0; font-size: 16px; line-height: 1.25; }
 .row > span { min-width: 0; }
-.row em { display: block; font-style: normal; font-size: 12px; color: var(--muted); margin-top: 2px; }
-.row input[type="range"] { width: 50%; accent-color: var(--accent); }
-/* Варианты (сигналы, шрифт): касание — выбрать и сразу услышать/увидеть */
-.snd-row { padding: 2px 0 10px; }
-.snd-lbl { display: block; font-size: 15px; margin-bottom: 6px; }
+.row em { display: block; font-style: normal; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.row em:empty { display: none; }
+.row input[type="range"] { flex: none; width: 46%; accent-color: var(--accent); }
+.row-btns { flex: none; display: flex; gap: 8px; }
+/* Выпадающий список: текущее значение и стрелка; на iPhone открывает системное меню */
+.pick {
+  appearance: none; -webkit-appearance: none; flex: none; max-width: 52%; min-height: 38px; margin: 0;
+  padding: 0 32px 0 12px; border: 0; border-radius: 10px; cursor: pointer;
+  background: var(--panel-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23f6f4ee' stroke-opacity='.6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center / 12px 8px;
+  color: var(--fg); font: inherit; font-size: 15px; font-weight: 700; text-overflow: ellipsis;
+}
+.seg.seg-sm { flex: none; margin: 0; background: var(--bg); }
+.seg-sm button { min-height: 34px; padding: 0 12px; }
+/* Варианты шрифта: касание — выбрать и сразу увидеть */
 .opts { display: flex; flex-wrap: wrap; gap: 5px; }
 .opt {
   min-height: 40px; padding: 0 11px; border-radius: 20px; border: 0; cursor: pointer;
@@ -373,9 +392,9 @@ body[data-phase="idle"] .phase-label, body[data-phase="done"] .phase-label { dis
   box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .2s, color .2s;
 }
 .opt.on { color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent); }
-.font-opts { margin-bottom: 8px; }
-.font-opt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; min-width: 96px; padding: 8px 12px; border-radius: 14px; }
-.font-opt b { font-size: 28px; line-height: 1.05; color: var(--fg); font-weight: 800; font-variant-numeric: tabular-nums; }
+.font-opts { margin-bottom: 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.font-opt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; min-width: 0; padding: 8px 6px; border-radius: 14px; }
+.font-opt b { font-size: 24px; line-height: 1.1; color: var(--fg); font-weight: 800; font-variant-numeric: tabular-nums; }
 .font-opt span { font-size: 12px; }
 .field-lbl { font-size: 14px; font-weight: 600; color: var(--muted); margin: 6px 0 6px; }
 
@@ -388,17 +407,11 @@ body[data-phase="idle"] .phase-label, body[data-phase="done"] .phase-label { dis
 .seg button { flex: 1; min-height: 40px; border: 0; border-radius: 9px; background: transparent; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; padding: 0 6px; }
 .seg button.on { background: var(--panel-2); color: var(--fg); }
 
-.cal-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 4px 0 6px; border-radius: 12px; background: var(--panel); }
-.cal-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cal-info b { font-size: 15px; }
-.cal-info span { font-size: 13px; color: var(--muted); }
-
-.meter-wrap { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
-.meter { position: relative; flex: 1; height: 16px; border-radius: 8px; background: var(--panel); overflow: hidden; }
+.meter { position: relative; flex: 1; height: 16px; border-radius: 8px; background: var(--bg); overflow: hidden; }
 .meter i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #4cd964; }
 .meter b { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--warn); left: 50%; }
 .meter.hit i { background: var(--warn); }
-.meter-count { font-size: 14px; color: var(--muted); min-width: 120px; text-align: right; }
+.meter-count { flex: none; font-size: 14px; color: var(--muted); text-align: right; }
 
 .toast {
   position: absolute; left: 50%; top: calc(14px + var(--st)); z-index: 50;

@@ -1149,9 +1149,27 @@
     rounded: '"SF Pro Rounded", ui-rounded, -apple-system, system-ui, sans-serif',
     classic: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif',
     din: '"DIN Condensed", "DIN Alternate", Bahnschrift, "Roboto Condensed", "Arial Narrow", sans-serif',
+    lcd: 'DSEG7, ui-monospace, monospace', // семисегментное табло — свой файл fonts/, работает везде
     serif: 'ui-serif, "New York", Georgia, "Times New Roman", serif',
-    mono: 'ui-monospace, "SF Mono", Menlo, "Courier New", monospace'
+    mono: 'ui-monospace, "SF Mono", Menlo, "Courier New", monospace',
+    // Дальше — встроенные в iPhone шрифты; где их нет (Android, компьютер), вариант не показывается.
+    sport: '"Futura-CondensedExtraBold", "Futura Condensed ExtraBold", sans-serif',
+    heavy: '"AvenirNextCondensed-Heavy", "Avenir Next Condensed", sans-serif',
+    slab: '"Rockwell-Bold", Rockwell, serif',
+    chalk: 'Chalkduster, fantasy',
+    marker: '"MarkerFelt-Wide", "Marker Felt", fantasy',
+    typewriter: '"AmericanTypewriter-Bold", "American Typewriter", serif',
+    elegant: '"Didot-Bold", Didot, serif',
+    engraved: '"Copperplate-Bold", Copperplate, serif'
   };
+  var FONT_BASE = ['rounded', 'classic', 'din', 'lcd', 'serif', 'mono'];
+  // Шрифт есть на устройстве, если «1:23» им шире или уже, чем запасным (canvas меряет без вёрстки).
+  function hasFont(stack) {
+    var c = hasFont.c || (hasFont.c = document.createElement('canvas').getContext('2d'));
+    var named = stack.replace(/,\s*(sans-serif|serif|fantasy|monospace)$/, '');
+    var w = function (f) { c.font = '800 40px ' + f; return c.measureText('1:23 0').width; };
+    return ['monospace', 'serif'].some(function (g) { return w(named + ', ' + g) !== w(g); });
+  }
 
   /* ================= Колесо настройки: листаем пальцем, как будильник в iPhone ================= */
   // d — {k, f}: ключ настройки и формат. Значения — P.choices(k). onChange вызывается на каждом шаге.
@@ -1301,17 +1319,23 @@
       if (!force && key === this.lastFit) return;
       this.lastFit = key;
       c.style.zoom = '';
-      var w = c.scrollWidth, room = box.clientWidth;
-      if (w > room && room > 0) c.style.zoom = (room / w).toFixed(3);
+      // Ширина — по вёрстке, высота — по самим знакам (у табло и «Мела» цифры выше строки и наезжали на кнопки).
+      var cs = getComputedStyle(c), ctx = hasFont.c || (hasFont.c = document.createElement('canvas').getContext('2d'));
+      ctx.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+      var m = ctx.measureText(c.textContent), half = box.clientHeight / 2 * 0.94, lh = c.offsetHeight; // запас: метрики шрифтов неточны
+      // базовая линия от центра строки; знаки — выше и ниже неё; часы стоят по центру места, zoom сжимает к центру
+      var base = m.fontBoundingBoxAscent !== undefined ? (lh - m.fontBoundingBoxAscent - m.fontBoundingBoxDescent) / 2 + m.fontBoundingBoxAscent - lh / 2 : 0;
+      var up = m.actualBoundingBoxAscent - base, down = base + m.actualBoundingBoxDescent;
+      var k = Math.min(1, box.clientWidth / c.scrollWidth, up > 0 ? half / up : 1, down > 0 ? half / down : 1);
+      if (k < 1 && k > 0) c.style.zoom = k.toFixed(3);
     },
     syncOpts: function () {
-      document.querySelectorAll('[data-snd]').forEach(function (box) {
-        box.querySelectorAll('.opt').forEach(function (b) {
-          var on = S[box.dataset.snd] === b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on);
-          b.hidden = !Sound.has(b.dataset.v) && !on;
-        });
+      document.querySelectorAll('[data-snd]').forEach(function (sel) {
+        // записи, которых нет (не скачались), не предлагаем
+        sel.querySelectorAll('option').forEach(function (o) { o.hidden = o.disabled = !Sound.has(o.value) && S[sel.dataset.snd] !== o.value; });
+        sel.value = S[sel.dataset.snd];
       });
-      document.querySelectorAll('#tickOpts .opt').forEach(function (b) { var on = S.tickSec === +b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+      $('tickPick').value = String(S.tickSec);
       document.querySelectorAll('#fontOpts .opt').forEach(function (b) { var on = S.font === b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
     },
 
@@ -1559,28 +1583,22 @@
       $('optFlip').onchange = function () { S.flip = this.checked; save(); self.applyLook(); };
       $('optEco').onchange = function () { S.eco = this.checked; save(); self.applyLook(); };
       $('optDim').onchange = function () { S.dimIdle = this.checked; save(); };
-      // Сигналы: касание выбирает и сразу проигрывает — отдельная «проверка звука» не нужна.
-      document.querySelectorAll('[data-snd]').forEach(function (box) {
-        Sound.SIGNALS.forEach(function (v) {
-          var b = document.createElement('button');
-          b.type = 'button'; b.className = 'opt'; b.dataset.v = v; b.dataset.i18n = 'snd.' + v;
-          b.setAttribute('role', 'radio');
-          b.onclick = function () { S[box.dataset.snd] = v; save(); Sound.unlock(); Sound.play(v); self.syncOpts(); };
-          box.appendChild(b);
-        });
+      // Сигналы — выпадающие списки: выбор сразу проигрывается, отдельная «проверка звука» не нужна.
+      var option = function (sel, v, key) { var o = document.createElement('option'); o.value = v; o.dataset.i18n = key; sel.appendChild(o); };
+      document.querySelectorAll('[data-snd]').forEach(function (sel) {
+        Sound.SIGNALS.forEach(function (v) { option(sel, v, 'snd.' + v); });
+        sel.onchange = function () { S[sel.dataset.snd] = sel.value; save(); Sound.unlock(); Sound.play(sel.value); self.syncOpts(); };
       });
-      // Тиканье: выкл / последние 5 / 10 секунд раунда и отдыха. Касание — выбрать и сразу услышать.
-      [0, 5, 10].forEach(function (v) {
-        var b = document.createElement('button');
-        b.type = 'button'; b.className = 'opt'; b.dataset.v = v; b.dataset.i18n = 'tick.' + v; b.setAttribute('role', 'radio');
-        b.onclick = function () {
-          S.tickSec = v; save(); Sound.unlock(); self.syncOpts();
-          if (v) [0, 1, 2].forEach(function (k) { setTimeout(function () { Sound.play('tick'); }, k * 1000); });
-        };
-        $('tickOpts').appendChild(b);
-      });
+      // Тиканье: выкл / последние 5 / 10 секунд раунда и отдыха — выбрать и сразу услышать.
+      [0, 5, 10].forEach(function (v) { option($('tickPick'), v, 'tick.' + v); });
+      $('tickPick').onchange = function () {
+        var v = +this.value;
+        S.tickSec = v; save(); Sound.unlock(); self.syncOpts();
+        if (v) [0, 1, 2].forEach(function (k) { setTimeout(function () { Sound.play('tick'); }, k * 1000); });
+      };
       // Шрифт цифр: каждый вариант показан своим шрифтом.
       Object.keys(FONTS).forEach(function (v) {
+        if (FONT_BASE.indexOf(v) < 0 && !hasFont(FONTS[v]) && S.font !== v) return;
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'opt font-opt'; b.dataset.v = v; b.setAttribute('role', 'radio');
         b.innerHTML = '<b style="font-family:' + FONTS[v].replace(/"/g, "'") + '">1:23</b><span data-i18n="font.' + v + '"></span>';
@@ -1593,25 +1611,21 @@
       $('btnCalReset').onclick = function () {
         S.calMic = null; S.calMotion = null; S.stompModel = null; save(); self.syncCal(); UI.toast(L('cl.reset'));
       };
-      $('stompMode').querySelectorAll('button').forEach(function (b) {
-        b.onclick = function () {
-          S.stompMode = b.dataset.v; save();
-          if ((S.stompMode === 'mic' || S.stompMode === 'both') && Listen.cmdOn) {
-            Listen.stopCommands(); S.commands = false; save();
-            UI.toast(L('t.cmdOff'));
-          }
-          Stomp.apply(); self.syncSettings(); self.render(true);
-        };
-      });
+      $('stompMode').onchange = function () {
+        S.stompMode = this.value; save();
+        if ((S.stompMode === 'mic' || S.stompMode === 'both') && Listen.cmdOn) {
+          Listen.stopCommands(); S.commands = false; save();
+          UI.toast(L('t.cmdOff'));
+        }
+        Stomp.apply(); self.syncSettings(); self.render(true);
+      };
       $('stompPattern').querySelectorAll('button').forEach(function (b) {
         b.onclick = function () { S.stompPattern = b.dataset.v; save(); self.syncSettings(); self.render(true); };
       });
-      $('stompDuring').querySelectorAll('button').forEach(function (b) {
-        b.onclick = function () {
-          S.stompInRound = b.dataset.v === 'all'; S.loudRounds = b.dataset.v === 'none'; save();
-          App.syncMic(0); self.syncSettings(); self.renderStatus();
-        };
-      });
+      $('stompDuring').onchange = function () {
+        S.stompInRound = this.value === 'all'; S.loudRounds = this.value === 'none'; save();
+        App.syncMic(0); self.syncSettings(); self.renderStatus();
+      };
       $('optSens').oninput = function () { S.sens = +this.value; save(); };
       document.querySelectorAll('[data-lang-seg] button').forEach(function (b) {
         b.onclick = function () { self.setLang(b.dataset.v); };
@@ -1641,6 +1655,7 @@
       $('commandsSection').hidden = !Listen.supported;
       $('voiceOpts').hidden = !S.voice;
       $('stompOpts').hidden = S.stompMode === 'off';
+      document.querySelectorAll('.stomp-only').forEach(function (r) { r.hidden = S.stompMode === 'off'; });
       var bag = S.mode === 'bag';
       $('sparOpts').hidden = bag; $('bagOpts').hidden = !bag;
       $('modeSeg').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.mode); });
@@ -1654,13 +1669,13 @@
         this.renderBagPlan(P);
       }
       var during = App.stompDuring();
-      $('stompDuring').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === during); });
+      $('stompDuring').value = during;
       $('stompDuringHint').textContent = {
         none: Stomp.needsMic() ? L('duh.noneMic') : L('duh.none'),
         rest: L('duh.rest') + (Stomp.needsMic() ? L('duh.quieter') : ''),
         all: L('duh.all') + (Stomp.needsMic() ? L('duh.quieter') : '')
       }[during];
-      $('stompMode').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.stompMode); });
+      $('stompMode').value = S.stompMode;
       $('stompPattern').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.stompPattern); });
       $('stompModeHint').textContent = L('smh.' + S.stompMode);
       this.syncCal();
@@ -1782,6 +1797,8 @@
     if (e.key === 'r' || e.key === 'к') Timer.reset();
   });
 
+  // Шрифт табло догружается из файла — после загрузки ширина цифр другая, подгоняем заново.
+  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function () { UI.fitClock(true); });
   window.addEventListener('resize', function () { UI.fitClock(true); if (!App.unlocked) UI.renderStatus(); }); // совет про поворот
 
   var hiddenAt = 0;
@@ -1827,5 +1844,5 @@
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
 
-  window.BoxTimer = { Timer: Timer, UI: UI, Plan: Plan, Coach: Coach, Stomp: Stomp, Sound: Sound, Voice: Voice, Clips: Clips, App: App, Cal: Cal, Wake: Wake, S: S };
+  window.BoxTimer = { Timer: Timer, UI: UI, FONTS: FONTS, Plan: Plan, Coach: Coach, Stomp: Stomp, Sound: Sound, Voice: Voice, Clips: Clips, App: App, Cal: Cal, Wake: Wake, S: S };
 })();

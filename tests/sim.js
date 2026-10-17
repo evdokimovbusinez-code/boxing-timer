@@ -117,6 +117,8 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
   }
 
   // Цифры влезают между вырезом и краем: iPhone с чёлкой/островом в горизонтали × все шрифты × все состояния экрана.
+  // (Шрифтов iPhone в песочнице нет — проверяются запасные; табло DSEG7 — настоящее.)
+  await page.evaluate(function () { return document.fonts.load('800 40px DSEG7'); }); // табло — из файла
   var DEVICES = [['SE', 667, 375, 0, 0], ['14', 844, 390, 47, 21], ['15 Pro Max', 932, 430, 59, 21]];
   for (var d = 0; d < DEVICES.length; d++) {
     var D = DEVICES[d];
@@ -132,7 +134,7 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
         var left = sr.left + parseFloat(cs.paddingLeft) - 16, right = sr.right - parseFloat(cs.paddingRight) + 16; // поля 16 px — запас, вырез — нет
         if (c.left < left - 1 || c.right > right + 1) out.push(B.S.font + ' ' + what + ' ' + Math.round(c.left) + '…' + Math.round(c.right) + ' вне ' + Math.round(left) + '…' + Math.round(right));
       };
-      Object.keys({ rounded: 1, classic: 1, din: 1, serif: 1, mono: 1 }).forEach(function (f) {
+      Object.keys(B.FONTS).forEach(function (f) {
         B.S.font = f; B.UI.applyLook();
         [['spar', 120], ['spar', 600], ['bag', 0]].forEach(function (m) {
           B.S.mode = m[0]; if (m[1]) B.S.roundSec = m[1]; B.Plan.refresh();
