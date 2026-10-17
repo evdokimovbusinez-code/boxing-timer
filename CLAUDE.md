@@ -46,6 +46,20 @@
   **Любая новая строка — сразу в оба языка** (тест проверяет, что ключи совпадают). Язык — `S.lang`.
 - `sw.js` — офлайн-кэш stale-while-revalidate (старт из кэша, обновление на следующий запуск).
 
+## Приложение для iPhone (`ios/`, Capacitor 8)
+Тот же сайт внутри нативной обёртки — ради того, что веб не может: тик Taptic Engine на каждое значение колеса
+(`@capacitor/haptics`, `Haptic.native`), всегда горизонтально (Info.plist), экран не гаснет и звук в фоне/при беззвучном
+(AppDelegate: `isIdleTimerDisabled`, `AVAudioSession .playback + mixWithOthers`, `UIBackgroundModes audio`), без строки
+состояния и полоски «Домой» (`TimerViewController` в SceneDelegate.swift), звук включается без касания.
+- В `app.js` всё нативное — за флагом `NATIVE` (`Capacitor.isNativePlatform()`); сайт без него работает как раньше.
+- Сборка: сайт остаётся без сборки; `tools/www.sh` копирует нужные файлы в `www/` (в .gitignore), `npm run sync` → `cap sync ios`.
+- `.github/workflows/ios.yml` (macOS-раннер) собирает .ipa **без подписи** и на main выкладывает GitHub Release `app-1.0.N`
+  с `Rounds.ipa` и `apps.json` (источник SideStore, `tools/sidestore_source.py`). Владелец ставит через **SideStore**
+  (бесплатный Apple ID, продление раз в 7 дней на телефоне); источник:
+  `https://github.com/evdokimovbusinez-code/boxing-timer/releases/latest/download/apps.json`.
+- Новый плагин Capacitor → `npm i` + `npx cap sync ios` (обновит `ios/App/CapApp-SPM/Package.swift`) и закоммитить.
+- Голосовые команды (`webkitSpeechRecognition`) в WKWebView могут не работать — тогда кнопка «Голосом» скрыта (`Listen.supported`).
+
 ## Выученные грабли iOS (не наступать снова)
 - Звук, микрофон, датчик движения, TTS включаются только по касанию. Отдельного экрана «Включить» при запуске нет: первое
   касание экрана таймера (`App.unlocked === false`) только включает, не стартует. Если AudioContext не ожил после фона —

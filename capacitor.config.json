@@ -1,0 +1,10 @@
+{
+  "appId": "io.github.evdokimovbusinez.boxingtimer",
+  "appName": "Раунды",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0b0b0d",
+    "scrollEnabled": false
+  }
+}
