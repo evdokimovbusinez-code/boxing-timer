@@ -351,13 +351,19 @@
       document.querySelectorAll('button, .wheel, #stage, #gate').forEach(function (el) { Haptic.attach(el); });
     },
     // В приложении — Taptic Engine напрямую: тик на каждое значение колеса, как в будильнике, и без касания тоже.
+    selOn: false,
     native: function (kind) {
       var C = window.Capacitor, h = C.Plugins && C.Plugins.Haptics;
-      var m = kind === 'tick' ? ['selectionChanged', {}] : ['impact', { style: kind === 'strong' ? 'HEAVY' : 'LIGHT' }];
-      try {
-        var r = h && h[m[0]] ? h[m[0]](m[1]) : C.nativePromise('Haptics', m[0], m[1]);
-        if (r && r.catch) r.catch(function () {});
-      } catch (e) {}
+      var call = function (m, o) {
+        try {
+          var r = h && h[m] ? h[m](o || {}) : C.nativePromise('Haptics', m, o || {});
+          if (r && r.catch) r.catch(function () {});
+        } catch (e) {}
+      };
+      if (kind !== 'tick') { call('impact', { style: kind === 'strong' ? 'HEAVY' : 'LIGHT' }); return; }
+      // Тик колеса — UISelectionFeedbackGenerator; без selectionStart плагин молча ничего не делает.
+      if (!this.selOn) { this.selOn = true; call('selectionStart'); }
+      call('selectionChanged');
     },
     /** tick — шаг колеса, tap — кнопка, strong — старт, пауза, сброс. Сайт вибрирует только на Android, приложение — везде. */
     play: function (kind) {

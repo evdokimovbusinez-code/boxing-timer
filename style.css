@@ -50,6 +50,8 @@ svg { width: 1em; height: 1em; flex: none; }
   --sr: env(safe-area-inset-right, 0px);
   --sb: env(safe-area-inset-bottom, 0px);
   --sl: env(safe-area-inset-left, 0px);
+  /* Поля по краям одинаковые (по большему — со стороны выреза), иначе цифры съезжают от центра экрана */
+  --sx: max(var(--sl), var(--sr));
 }
 /* Телефон в портрете (или включена блокировка поворота) — поворачиваем всё приложение. */
 @media (orientation: portrait) {
@@ -107,7 +109,7 @@ body.eco[data-phase="prep"][data-warn="1"] #root { animation: none; }
   position: absolute; inset: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
-  padding: calc(8px + var(--st)) calc(16px + var(--sr)) calc(12px + var(--sb)) calc(16px + var(--sl));
+  padding: calc(8px + var(--st)) calc(16px + var(--sx)) calc(12px + var(--sb)) calc(16px + var(--sx));
   gap: 8px;
 }
 
