@@ -24,6 +24,8 @@
     { key: 'preset.amateur', rounds: 3, roundSec: 180, restSec: 60 },
     { key: 'preset.tabata', rounds: 8, roundSec: 20, restSec: 10 }
   ];
+  // Добровольная поддержка: ссылка на оплату (банка Monobank / Ko-fi / PayPal). Пусто — кнопки в настройках нет.
+  var DONATE_URL = '';
   var KEY = 'boxing-timer.settings.v1';
   var S = Object.assign({}, DEFAULTS);
   var saved = null;
@@ -1611,6 +1613,11 @@
         b.onclick = function () { S.font = v; save(); self.applyLook(); self.syncOpts(); };
         $('fontOpts').appendChild(b);
       });
+      if (DONATE_URL) {
+        $('donateLink').href = DONATE_URL; $('donate').hidden = false;
+        // В приложении обычный переход на чужой сайт Capacitor сам открывает в Safari; на сайте — новая вкладка.
+        if (NATIVE) $('donateLink').removeAttribute('target');
+      }
       $('btnCal').onclick = function () { Cal.open(); };
       $('btnCalNext').onclick = function () { Cal.next(); };
       $('btnCalCancel').onclick = function () { Cal.cancel(); };
