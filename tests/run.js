@@ -341,5 +341,43 @@ function runOld(samples, sens) {
   check('i18n: пустых переводов нет', kr.every(k => I.DICT.ru[k] !== '' && I.DICT.en[k] !== ''));
 }
 
+/* ---------- Режим «Груша»: программы тренера ---------- */
+{
+  const BP = require('../programs.js');
+  const PH = require('../voice-phrases.js');
+  check('груша: 24 программы, на каждую цель и уровень ровно одна', BP.PROGRAMS.length === 24 &&
+    BP.GOALS.every(g => BP.LEVELS.every(l => BP.PROGRAMS.filter(p => p.goal === g && p.level === l).length === 1)));
+  const bad = [];
+  for (const p of BP.PROGRAMS) {
+    const sum = p.blocks.reduce((a, b) => a + b[1], 0);
+    if (p.round % sum) bad.push(p.id + ': блоки не делят раунд');
+    if (p.themes.length !== p.rounds) bad.push(p.id + ': тем ' + p.themes.length + ' на ' + p.rounds + ' раундов');
+    const x = BP.expand(p);
+    x.rounds.forEach((r, i) => {
+      const s = r.segs.reduce((a, g) => a + g.sec, 0);
+      if (s !== p.round) bad.push(p.id + ' р' + (i + 1) + ': отрезки ' + s + ' ≠ ' + p.round);
+      r.segs.forEach(g => {
+        if (!BP.TYPES.includes(g.type)) bad.push(p.id + ': тип ' + g.type);
+        if (!(g.task in BP.COMBOS) && !(g.task in BP.CUES)) bad.push(p.id + ': задание ' + g.task);
+      });
+    });
+    if (x.rounds[0].segs[0].task !== 'shadow') bad.push(p.id + ': первый раунд не разминка');
+    if (p.level === 'beginner' && p.blocks.some(b => b[0] === 'max')) bad.push(p.id + ': у новичка максимум');
+  }
+  check('груша: отрезки ровно складываются в раунд, задания из словаря, разминка, у новичков без «максимума»', !bad.length, bad.slice(0, 5).join('; '));
+  const mins = { beginner: [12, 18], amateur: [20, 28], advanced: [28, 40], pro: [36, 50] };
+  const off = BP.PROGRAMS.filter(p => { const m = BP.expand(p).total / 60; return m < mins[p.level][0] || m > mins[p.level][1]; });
+  check('груша: длительность по уровню (новичок 12–18 мин … профи 36–50)', !off.length, off.map(p => p.id).join(','));
+  const x = BP.expand(BP.find('burst', 'amateur'));
+  const r2 = x.rounds[1];
+  check('груша: «взрывная, любитель» — 50 средне + 10 максимум, задание раунда 2 — тройка',
+    r2.segs.length === 6 && r2.segs[0].type === 'medium' && r2.segs[0].task === 'c123' && r2.segs[1].type === 'max' && r2.segs[1].start === 50 && r2.segs[1].task === 'all_out');
+  const at = BP.segAt(r2, 55);
+  check('груша: segAt — 55-я секунда внутри «максимума», следующий — средний', at.seg.type === 'max' && at.next.type === 'medium' && at.i === 1);
+  const ru = PH.list('ru'), en = PH.list('en'), ids = new Set(ru.map(x => x.id));
+  const need = Object.keys(BP.COMBOS).concat(Object.keys(BP.CUES)).map(k => 'bag_' + k);
+  check('груша: у каждого задания есть фраза на обоих языках', need.every(i => ids.has(i)) && ru.length === en.length && ru.every((x, i) => x.id === en[i].id && en[i].text));
+}
+
 console.log('\n' + pass + ' прошло, ' + fail + ' упало');
 process.exit(fail ? 1 : 0);

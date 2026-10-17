@@ -126,9 +126,34 @@
     </div>
     <div class="sheet-body" id="sheetBody">
       <section data-tab="workout">
-        <div id="presets" class="opts presets" role="radiogroup" data-i18n-aria="presets.aria"></div>
-        <div id="steppers" class="wheels"></div>
-        <p class="hint small left" data-i18n-html="workout.hint"></p>
+        <div class="seg seg-mode" id="modeSeg">
+          <button data-v="spar" type="button" data-i18n="mode.spar">Спарринг</button>
+          <button data-v="bag" type="button" data-i18n="mode.bag">Груша</button>
+        </div>
+        <div id="sparOpts">
+          <div id="presets" class="opts presets" role="radiogroup" data-i18n-aria="presets.aria"></div>
+          <div id="steppers" class="wheels"></div>
+          <p class="hint small left" data-i18n-html="workout.hint"></p>
+        </div>
+        <div id="bagOpts">
+          <div class="field-lbl" data-i18n="bag.goal">Что качаем</div>
+          <div class="opts goal-opts" id="goalOpts" role="radiogroup"></div>
+          <div class="field-lbl" data-i18n="bag.level">Уровень</div>
+          <div class="seg" id="levelSeg">
+            <button data-v="beginner" type="button" data-i18n="level.beginner">Новичок</button>
+            <button data-v="amateur" type="button" data-i18n="level.amateur">Любитель</button>
+            <button data-v="advanced" type="button" data-i18n="level.advanced">Продвинутый</button>
+            <button data-v="pro" type="button" data-i18n="level.pro">Профи</button>
+          </div>
+          <div class="bag-head"><span class="field-lbl" data-i18n="bag.plan">Программа</span><b class="bag-desc" id="bagDesc"></b></div>
+          <div class="bag-legend">
+            <span class="k-calm" data-i18n="leg.calm">спокойно · колокол</span>
+            <span class="k-hard" data-i18n="leg.hard">сильно · свисток</span>
+            <span class="k-max" data-i18n="leg.max">максимум · горн</span>
+          </div>
+          <ol class="bag-plan" id="bagPlan"></ol>
+          <p class="hint small left" data-i18n="bag.hint"></p>
+        </div>
       </section>
 
       <section data-tab="sound">
@@ -143,6 +168,7 @@
         <div class="snd-row"><span class="snd-lbl" data-i18n="snd.start">Начало раунда</span><div class="opts" data-snd="sndStart" role="radiogroup"></div></div>
         <div class="snd-row"><span class="snd-lbl" data-i18n="snd.end">Конец раунда</span><div class="opts" data-snd="sndEnd" role="radiogroup"></div></div>
         <div class="snd-row"><span class="snd-lbl" data-i18n="snd.warn">Перед концом раунда и отдыха</span><div class="opts" data-snd="sndWarn" role="radiogroup"></div></div>
+        <div class="snd-row"><span class="snd-lbl" data-i18n="tick.title">Тиканье в конце раунда и отдыха</span><div class="opts" id="tickOpts" role="radiogroup"></div></div>
       </section>
 
       <section data-tab="hands">
@@ -201,6 +227,7 @@
 <script src="i18n.js"></script>
 <script src="parse.js"></script>
 <script src="detect.js"></script>
+<script src="programs.js"></script>
 <script src="voice-phrases.js"></script>
 <script src="app.js"></script>
 </body>

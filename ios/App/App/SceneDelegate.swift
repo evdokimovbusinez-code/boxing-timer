@@ -8,7 +8,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
-        window?.rootViewController = TimerViewController()
+        window?.rootViewController = CAPBridgeViewController()
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
@@ -21,12 +21,4 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
     }
-}
-
-/// Весь экран — таймеру: без строки состояния, полоска «Домой» прячется, а случайный свайп от края
-/// (перчаткой, полотенцем) не сворачивает приложение с первого раза.
-class TimerViewController: CAPBridgeViewController {
-    override var prefersStatusBarHidden: Bool { true }
-    override var prefersHomeIndicatorAutoHidden: Bool { true }
-    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
 }
