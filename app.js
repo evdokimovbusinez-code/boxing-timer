@@ -936,7 +936,7 @@
       this.lastSec = Math.ceil((this.dur - carry) / 1000);
       if (p === 'rest' && this.dur <= 0) { this.next(carry, silent); return; }
       App.syncMic(p === 'done' ? 5000 : 0); // в громком режиме микрофон выключается на всю тренировку
-      if (p === 'done') this.saveLog(); // и когда финиш наступил в фоне без озвучки
+      if (p === 'done') this.saveLog(true); // и когда финиш наступил в фоне без озвучки
       if (!silent) this.announce(p);
       UI.render(true);
       this.schedule();
@@ -979,10 +979,11 @@
       this.log.s += sec;
       if (sec * 2 >= this.dur / 1000) this.log.r++;
     },
-    // В историю — всё, где бокса набралась хотя бы минута: и полная тренировка, и прерванная.
-    saveLog: function () {
+    // В историю: тренировка, пройденная до финиша (любой длины), и прерванная, если бокса набралась минута
+    // (случайный «старт — сброс» статистику не засоряет).
+    saveLog: function (finished) {
       var g = this.log; this.log = null;
-      if (!g || g.s < 60) return;
+      if (!g || !(finished ? g.r > 0 : g.s >= 60)) return;
       Hist.add({ d: ST.today(), r: g.r, s: Math.round(g.s), m: Plan.bag() ? 'bag' : 'spar' });
       Remind.all();
     },

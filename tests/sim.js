@@ -132,9 +132,15 @@ function count(log, k, v) { return log.filter(function (e) { return e.k === k &&
   ok('история: прерванная на 90-й секунде — 1 раунд, 90 с', H.length === 2 + BP.PROGRAMS.length && H[H.length - 1].r === 1 && H[H.length - 1].s === 90, H[H.length - 1]);
   await partial(30);
   ok('история: 30 секунд — не тренировка, не пишем', (await hist()).length === 2 + BP.PROGRAMS.length);
-  await page.evaluate(function () { window.BoxTimer.S.roundSec = 180; });
+  // Короткая, но пройденная до финиша (1 × 0:30) — засчитана.
+  await page.evaluate(function () {
+    var B = window.BoxTimer; B.S.rounds = 1; B.S.roundSec = 30; B.S.prepSec = 0; B.Plan.refresh(); B.Timer.start(); __advance(31000);
+  });
+  H = await hist();
+  ok('история: 1 раунд × 0:30 до финиша — засчитана', H.length === 3 + BP.PROGRAMS.length && H[H.length - 1].r === 1 && H[H.length - 1].s === 30, H[H.length - 1]);
+  await page.evaluate(function () { var B = window.BoxTimer; B.Timer.reset(); B.S.rounds = 10; B.S.roundSec = 180; });
   await partial(80); H = await hist();
-  ok('история: раунд 3:00 прерван на 80-й секунде — минуты есть, раунд не засчитан', H.length === 3 + BP.PROGRAMS.length && H[H.length - 1].r === 0 && H[H.length - 1].s === 80, H[H.length - 1]);
+  ok('история: раунд 3:00 прерван на 80-й секунде — минуты есть, раунд не засчитан', H.length === 4 + BP.PROGRAMS.length && H[H.length - 1].r === 0 && H[H.length - 1].s === 80, H[H.length - 1]);
   await page.evaluate(function () { window.BoxTimer.S.roundSec = 120; });
   var idle = await page.evaluate(function () { return document.getElementById('idleSub').textContent; });
   ok('готовность: в строке — неделя и серия (за неделю 26 тренировок — цель выполнена)', /цель недели ✓ · 🔥 1 нед/.test(idle), idle);
