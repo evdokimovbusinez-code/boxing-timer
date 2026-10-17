@@ -44,14 +44,11 @@
   </header>
 
   <div class="center">
-    <!-- До старта: план тренировки, меняется прямо здесь -->
+    <!-- До старта: план тренировки, листается пальцем прямо здесь -->
     <div id="plan" class="plan">
-      <div class="plan-item"><span class="plan-lbl">Раунды</span><b class="plan-val" id="plan-rounds"></b>
-        <div class="plan-btns"><button type="button" data-k="rounds" data-d="-1" aria-label="Меньше раундов">−</button><button type="button" data-k="rounds" data-d="1" aria-label="Больше раундов">+</button></div></div>
-      <div class="plan-item"><span class="plan-lbl">Раунд</span><b class="plan-val" id="plan-roundSec"></b>
-        <div class="plan-btns"><button type="button" data-k="roundSec" data-d="-1" aria-label="Раунд короче">−</button><button type="button" data-k="roundSec" data-d="1" aria-label="Раунд длиннее">+</button></div></div>
-      <div class="plan-item"><span class="plan-lbl">Отдых</span><b class="plan-val" id="plan-restSec"></b>
-        <div class="plan-btns"><button type="button" data-k="restSec" data-d="-1" aria-label="Отдых короче">−</button><button type="button" data-k="restSec" data-d="1" aria-label="Отдых длиннее">+</button></div></div>
+      <div class="plan-item"><span class="plan-lbl">Раунды</span><div class="wheel" data-k="rounds" role="slider" aria-label="Раунды"></div></div>
+      <div class="plan-item"><span class="plan-lbl">Раунд</span><div class="wheel" data-k="roundSec" role="slider" aria-label="Длина раунда"></div></div>
+      <div class="plan-item"><span class="plan-lbl">Отдых</span><div class="wheel" data-k="restSec" role="slider" aria-label="Отдых"></div></div>
     </div>
     <div id="clock" class="clock">2:00</div>
     <div id="summary" class="summary"><div class="summary-title">ФИНИШ</div><div class="summary-text" id="summaryText"></div></div>
@@ -130,7 +127,7 @@
     <section>
       <h3>Тренировка</h3>
       <div id="presets" class="presets"></div>
-      <div id="steppers" class="steppers"></div>
+      <div id="steppers" class="wheels"></div>
     </section>
 
     <section>

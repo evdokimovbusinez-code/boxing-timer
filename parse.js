@@ -154,7 +154,23 @@
     return parts.join(' ');
   }
 
-  var api = { tokenize: tokenize, parseWorkout: parseWorkout, parseCommand: parseCommand, plural: plural, durWords: durWords };
+  /* Значения для колеса настройки: мелкий шаг там, где он нужен, крупный — дальше. */
+  function range(a, b, step) { var r = []; for (var v = a; v <= b; v += step) r.push(v); return r; }
+  var CHOICES = {
+    rounds: range(1, 30, 1),
+    roundSec: range(15, 55, 5).concat(range(60, 300, 15), range(330, 600, 30), range(660, 1200, 60)),
+    restSec: [0].concat(range(5, 55, 5), range(60, 300, 15), range(330, 600, 30)),
+    prepSec: range(0, 60, 5),
+    warnSec: range(0, 60, 5)
+  };
+  /** Список значений для настройки k; текущее значение не из списка (например, голосом «2:10») встаёт на своё место. */
+  function choices(k, cur) {
+    var l = CHOICES[k].slice();
+    if (cur != null && l.indexOf(cur) < 0) { l.push(cur); l.sort(function (x, y) { return x - y; }); }
+    return l;
+  }
+
+  var api = { tokenize: tokenize, parseWorkout: parseWorkout, parseCommand: parseCommand, plural: plural, durWords: durWords, choices: choices };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.BoxParse = api;
 })(this);

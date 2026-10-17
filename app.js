@@ -948,6 +948,102 @@
     }
   };
 
+  /* ================= Колесо настройки: листаем пальцем, как будильник в iPhone ================= */
+  // d — {k, f}: ключ настройки и формат. Значения — P.choices(k). onChange вызывается на каждом шаге.
+  function makeWheel(el, d, onChange) {
+    var W = { pos: 0, target: 0, list: [], items: [], drag: null, anim: 0 };
+    for (var j = 0; j < 7; j++) { var it = document.createElement('span'); it.className = 'wheel-item'; el.appendChild(it); W.items.push(it); }
+    var row = function () { return el.offsetHeight * 0.36 || 40; };
+    // Ось «вверх-вниз» экрана в координатах окна: в портрете #root повёрнут, свайп тоже надо повернуть.
+    var axis = function () {
+      var m = /matrix\(([^)]+)\)/.exec(getComputedStyle($('root')).transform || '');
+      if (!m) return [0, 1];
+      var v = m[1].split(',').map(Number);
+      return [v[2], v[3]];
+    };
+    var clampIdx = function (i) { return Math.max(0, Math.min(W.list.length - 1, Math.round(i))); };
+
+    W.draw = function () {
+      var base = Math.round(W.pos), r = row();
+      W.items.forEach(function (it, j) {
+        var k = base + j - 3, dist = k - W.pos, a = Math.min(1, Math.abs(dist));
+        if (k < 0 || k >= W.list.length || Math.abs(dist) > 2.2) { it.style.visibility = 'hidden'; return; }
+        var t = d.f(W.list[k]);
+        if (it.textContent !== t) it.textContent = t;
+        it.style.visibility = '';
+        it.style.transform = 'translateY(' + (dist * r).toFixed(1) + 'px) scale(' + (1 - 0.45 * a).toFixed(3) + ')';
+        it.style.opacity = (1 - 0.72 * a).toFixed(2);
+      });
+    };
+    W.commit = function () {
+      var v = W.list[clampIdx(W.pos)];
+      if (S[d.k] !== v) { S[d.k] = v; onChange(); }
+    };
+    W.sync = function () {
+      if (W.drag || W.anim) return;
+      W.list = P.choices(d.k, S[d.k]);
+      W.pos = W.list.indexOf(S[d.k]);
+      W.draw();
+    };
+    W.animTo = function (target) {
+      target = W.target = clampIdx(target);
+      var from = W.pos, t0 = now(), dur = Math.min(650, 160 + Math.abs(target - from) * 45);
+      cancelAnimationFrame(W.anim);
+      var step = function () {
+        var p = Math.min(1, (now() - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+        W.pos = from + (target - from) * e;
+        W.draw(); W.commit();
+        if (p < 1) W.anim = requestAnimationFrame(step);
+        else { W.anim = 0; save(); }
+      };
+      W.anim = requestAnimationFrame(step);
+    };
+
+    // Куда считать следующий шаг: если колесо ещё докручивается — от его цели (быстрые касания складываются).
+    var base = function () { return W.anim ? W.target : Math.round(W.pos); };
+    el.addEventListener('pointerdown', function (e) {
+      var b0 = base();
+      if (W.anim) { cancelAnimationFrame(W.anim); W.anim = 0; }
+      else W.list = P.choices(d.k, S[d.k]);
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+      W.drag = { ax: axis(), x: e.clientX, y: e.clientY, p0: W.pos, base: b0, t0: now(), moved: 0, hist: [[now(), W.pos]] };
+    });
+    el.addEventListener('pointermove', function (e) {
+      var g = W.drag;
+      if (!g) return;
+      var dy = (e.clientX - g.x) * g.ax[0] + (e.clientY - g.y) * g.ax[1], max = W.list.length - 1;
+      var p = g.p0 - dy / row();
+      if (p < 0) p /= 3; else if (p > max) p = max + (p - max) / 3; // резинка на краях
+      g.moved = Math.max(g.moved, Math.abs(dy));
+      g.hist.push([now(), p]); if (g.hist.length > 8) g.hist.shift();
+      W.pos = p; W.draw(); W.commit();
+    });
+    var end = function (e) {
+      var g = W.drag;
+      if (!g) return;
+      W.drag = null;
+      if (g.moved < 6 && now() - g.t0 < 450) {
+        // Касание соседнего значения — шаг на одно.
+        var b = el.getBoundingClientRect();
+        var off = (e.clientX - (b.left + b.width / 2)) * g.ax[0] + (e.clientY - (b.top + b.height / 2)) * g.ax[1];
+        W.animTo(g.base + (off > row() / 2 ? 1 : off < -row() / 2 ? -1 : 0));
+        return;
+      }
+      // Бросок: скорость за последние ~100 мс, колесо докручивается по инерции.
+      var t = now(), h = g.hist.filter(function (x) { return t - x[0] < 100; }), v = 0;
+      if (h.length > 1) v = (h[h.length - 1][1] - h[0][1]) / Math.max(16, h[h.length - 1][0] - h[0][0]);
+      W.animTo(W.pos + v * 250);
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      if (!W.anim) W.list = P.choices(d.k, S[d.k]);
+      W.animTo(base() + (e.deltaY > 0 ? 1 : -1));
+    }, { passive: false });
+    return W;
+  }
+
   /* ================= Интерфейс ================= */
   var UI = {
     lastKey: '', lastClock: '', lastActive: now(),
@@ -991,7 +1087,7 @@
       else if (T.phase === 'rest') rl = '<small>дальше</small>' + (last && T.round + 1 === S.rounds ? 'ПОСЛЕДНИЙ' : 'РАУНД <b>' + (T.round + 1) + '</b><span>/' + S.rounds + '</span>');
       $('roundLabel').innerHTML = rl;
 
-      ['rounds', 'roundSec', 'restSec'].forEach(function (k) { $('plan-' + k).textContent = k === 'rounds' ? S.rounds : k === 'restSec' && !S.restSec ? 'нет' : fmt(S[k]); });
+      this.syncWheels();
       $('summaryText').textContent = S.rounds + ' ' + P.plural(S.rounds, ['раунд', 'раунда', 'раундов']) + ' по ' + fmt(S.roundSec) +
         ' · ' + Math.round(S.rounds * S.roundSec / 60) + ' мин бокса';
       $('startText').textContent = T.phase === 'done' ? 'Ещё раз' : 'Старт';
@@ -1089,8 +1185,8 @@
     /* ---- Настройки ---- */
     openSettings: function () {
       if (Timer.running() && !Timer.paused) Timer.pause();
-      this.syncSettings();
       $('settings').hidden = false;
+      this.syncSettings();
       this.calibHits = 0;
       $('meterCount').textContent = 'топни — проверим';
       Stomp.setMeter(true);
@@ -1103,28 +1199,14 @@
     },
 
     STEPS: [
-      { k: 'rounds', lbl: 'Раунды', step: 1, min: 1, max: 30, f: String },
-      { k: 'roundSec', lbl: 'Раунд', step: 15, min: 15, max: 1200, f: fmt },
-      { k: 'restSec', lbl: 'Отдых', step: 15, min: 0, max: 600, f: fmt },
-      { k: 'prepSec', lbl: 'Подготовка', step: 5, min: 0, max: 60, f: fmt },
-      { k: 'warnSec', lbl: 'Сигнал до конца', step: 5, min: 0, max: 60, f: function (v) { return v ? v + ' с' : 'нет'; } }
+      { k: 'rounds', lbl: 'Раунды', f: String },
+      { k: 'roundSec', lbl: 'Раунд', f: fmt },
+      { k: 'restSec', lbl: 'Отдых', f: function (v) { return v ? fmt(v) : 'нет'; } },
+      { k: 'prepSec', lbl: 'Подготовка', f: function (v) { return v ? fmt(v) : 'нет'; } },
+      { k: 'warnSec', lbl: 'Сигнал за', f: function (v) { return v ? v + ' с' : 'нет'; } }
     ],
-    // Кнопка −/+: шаг по касанию, при удержании — быстро подряд.
-    bindStep: function (btn, d, dir) {
-      var self = this, rep = null, startT = null;
-      var stepOnce = function () {
-        var v = S[d.k] + d.step * dir;
-        if (d.k === 'roundSec' && S.roundSec <= 60 && dir < 0) v = S.roundSec - 5;
-        if (d.k === 'roundSec' && S.roundSec < 60 && dir > 0) v = S.roundSec + 5;
-        S[d.k] = Math.max(d.min, Math.min(d.max, v)); save(); self.syncSettings(); self.render(true);
-      };
-      var stop = function () { clearTimeout(startT); clearInterval(rep); };
-      btn.addEventListener('pointerdown', function (e) {
-        e.preventDefault(); stepOnce();
-        startT = setTimeout(function () { rep = setInterval(stepOnce, 90); }, 420);
-      });
-      ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { btn.addEventListener(ev, stop); });
-    },
+    wheels: [],
+    syncWheels: function () { this.wheels.forEach(function (w) { w.sync(); }); },
     buildSettings: function () {
       var self = this;
       PRESETS.forEach(function (p, i) {
@@ -1134,17 +1216,18 @@
         b.onclick = function () { S.rounds = p.rounds; S.roundSec = p.roundSec; S.restSec = p.restSec; save(); self.syncSettings(); self.render(true); };
         $('presets').appendChild(b);
       });
+      // Каждое значение листается колесом; на главном экране — те же колёса для трёх главных.
+      var changed = function () { self.syncPresets(); self.render(true); };
       this.STEPS.forEach(function (d) {
-        var row = document.createElement('div');
-        row.className = 'stepper';
-        row.innerHTML = '<span class="lbl">' + d.lbl + '</span><button type="button" data-d="-1" aria-label="меньше">−</button><span class="val" id="val-' + d.k + '"></span><button type="button" data-d="1" aria-label="больше">+</button>';
-        row.querySelectorAll('button').forEach(function (btn) { self.bindStep(btn, d, +btn.dataset.d); });
-        $('steppers').appendChild(row);
+        var cell = document.createElement('div');
+        cell.className = 'wheel-cell';
+        cell.innerHTML = '<span class="lbl">' + d.lbl + '</span><div class="wheel wheel-sm" role="slider" aria-label="' + d.lbl + '"></div>';
+        $('steppers').appendChild(cell);
+        self.wheels.push(makeWheel(cell.lastChild, d, changed));
       });
-      // Те же шаги — на главном экране, в плане тренировки.
-      document.querySelectorAll('.plan-btns button').forEach(function (btn) {
-        var d = self.STEPS.filter(function (x) { return x.k === btn.dataset.k; })[0];
-        self.bindStep(btn, d, +btn.dataset.d);
+      document.querySelectorAll('.plan .wheel').forEach(function (el) {
+        var d = self.STEPS.filter(function (x) { return x.k === el.dataset.k; })[0];
+        self.wheels.push(makeWheel(el, d, changed));
       });
 
       $('optVoice').onchange = function () { S.voice = this.checked; save(); self.syncSettings(); if (S.voice) Voice.speak(['round_1']); };
@@ -1203,11 +1286,8 @@
       };
     },
     syncSettings: function () {
-      this.STEPS.forEach(function (d) { var el = $('val-' + d.k); if (el) el.textContent = d.f(S[d.k]); });
-      document.querySelectorAll('.preset').forEach(function (b) {
-        var p = PRESETS[+b.dataset.i];
-        b.classList.toggle('active', p.rounds === S.rounds && p.roundSec === S.roundSec && p.restSec === S.restSec);
-      });
+      this.syncWheels();
+      this.syncPresets();
       $('optVoice').checked = S.voice;
       $('optVolume').value = S.volume;
       $('optCount').checked = S.countVoice;
@@ -1240,6 +1320,12 @@
       this.syncCal();
       this.fillVoices();
       this.voiceStatus();
+    },
+    syncPresets: function () {
+      document.querySelectorAll('.preset').forEach(function (b) {
+        var p = PRESETS[+b.dataset.i];
+        b.classList.toggle('active', p.rounds === S.rounds && p.roundSec === S.roundSec && p.restSec === S.restSec);
+      });
     },
     syncCal: function () {
       var parts = [];

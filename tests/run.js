@@ -239,6 +239,19 @@ function runOld(samples, sens) {
   check('модель маленькая (< 1 КБ)', json.length < 1024, json.length + ' байт');
 }
 
+/* ---------- Значения для колеса (листаем пальцем) ---------- */
+{
+  const r = P.choices('rounds'), rs = P.choices('roundSec'), rest = P.choices('restSec');
+  check('колесо: раунды 1…30', r[0] === 1 && r[r.length - 1] === 30 && r.length === 30);
+  check('колесо: раунд — частые значения есть', [20, 30, 60, 90, 120, 150, 180, 300, 600].every(v => rs.includes(v)), rs.join(','));
+  check('колесо: раунд — шаг мельче в начале', rs[1] - rs[0] === 5 && rs[rs.length - 1] - rs[rs.length - 2] === 60);
+  check('колесо: отдых начинается с «нет»', rest[0] === 0 && rest.includes(30) && rest.includes(60));
+  check('колесо: по возрастанию', [r, rs, rest, P.choices('prepSec'), P.choices('warnSec')].every(l => l.every((v, i) => !i || v > l[i - 1])));
+  const odd = P.choices('roundSec', 130);
+  check('колесо: значение не из списка (голосом 2:10) встаёт на место', odd.includes(130) && odd.indexOf(130) === odd.indexOf(120) + 1 && odd.every((v, i) => !i || v > odd[i - 1]));
+  check('колесо: обычное значение не дублируется', P.choices('roundSec', 120).length === rs.length);
+}
+
 /* ---------- Фразы нейроголоса ---------- */
 {
   const PH = require('../voice-phrases.js');
