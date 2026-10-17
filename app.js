@@ -12,7 +12,7 @@
   var DEFAULTS = {
     rounds: 10, roundSec: 120, restSec: 60, prepSec: 10, warnSec: 10,
     lang: 'ru', voice: true, volume: 1.4, loudRounds: true,
-    countVoice: true, halfVoice: false, sndStart: 'bell', sndEnd: 'gong', sndWarn: 'clapper', tickSec: 5, font: 'rounded', rev: 3,
+    countVoice: true, halfVoice: false, sndStart: 'r_bell', sndEnd: 'r_gong', sndWarn: 'clapper', tickSec: 5, font: 'rounded', rev: 4,
     stompMode: 'mic', stompPattern: 'double', stompInRound: false, sens: 0.55,
     calMic: null, calMotion: null, stompModel: null,
     commands: false, flip: false, eco: false, dimIdle: true
@@ -31,6 +31,12 @@
   if (saved) Object.assign(S, saved);
   // Владелец: «54321 — да». Счёт голосом теперь включён у всех, кто не менял настройки после этого.
   if (saved && !(saved.rev >= 3)) { S.countVoice = true; S.rev = 3; }
+  // Владелец: синтезированные сигналы «тупые». Кто не выбирал сам — переводим на записанные звонок и гонг ринга.
+  if (saved && !(saved.rev >= 4)) {
+    if (S.sndStart === 'bell') S.sndStart = 'r_bell';
+    if (S.sndEnd === 'gong') S.sndEnd = 'r_gong';
+    S.rev = 4;
+  }
   // Язык: у тех, кто уже пользовался, — русский как был; новому — по языку телефона.
   if (!saved || !saved.lang) S.lang = saved ? 'ru' : (/^ru|^uk|^be|^kk/i.test(navigator.language || 'ru') ? 'ru' : 'en');
   /** Текст интерфейса на текущем языке. */
@@ -149,7 +155,7 @@
         len = this.sample(name, t, 1);
         if (!len) return this.play({ r_bell: 'bell', r_gong: 'gong', r_whistle: 'whistle', r_horn: 'horn', r_sticks: 'clapper' }[name]);
         // Голос вступает, когда основной удар отзвучал, — не ждём весь хвост гонга.
-        len = Math.min(len, 1.3);
+        len = Math.min(len, 1.8);
       }
       switch (name) {
         case 'bell': // три быстрых высоких «дзынь» — как звонок на ринге

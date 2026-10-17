@@ -3,6 +3,7 @@ const CACHE = 'boxing-timer-v9';
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'i18n.js', 'parse.js', 'detect.js', 'voice-phrases.js', 'stomp-worklet.js',
   'manifest.webmanifest', 'media/keepawake.mp4',
+  'sounds/r_bell.mp3', 'sounds/r_gong.mp3', 'sounds/r_whistle.mp3', 'sounds/r_horn.mp3', 'sounds/tick.mp3',
   'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'
 ];
 
