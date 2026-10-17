@@ -37,8 +37,9 @@
       'workout.hint': 'Листай пальцем. <b>Подготовка</b> — время до первого раунда. <b>Сигнал за</b> — когда до конца раунда звучит «тук-тук» и «десять секунд».',
 
       'opt.voice': 'Голосовой помощник', 'opt.voice.sub': 'номер раунда, «10 секунд», «отдых»',
-      'opt.count': 'Считать вслух 5…1 в конце раунда', 'opt.half': 'Сигнал «Половина» в середине раунда', 'opt.volume': 'Громкость',
-      'test': 'Проверить звук', 'test.start': 'Старт', 'test.10': '10 сек', 'test.end': 'Конец', 'test.voice': 'Голос', 'vs.loading': 'Загружаю голос…',
+      'opt.count': 'Считать вслух 5…1 перед концом раунда и отдыха', 'opt.half': 'Сигнал «Половина» в середине раунда', 'opt.volume': 'Громкость',
+      'snd.title': 'Сигналы', 'snd.start': 'Начало раунда', 'snd.end': 'Конец раунда', 'snd.warn': 'Перед концом раунда и отдыха',
+      'snd.bell': 'Звонок', 'snd.ding': 'Колокол', 'snd.gong': 'Гонг', 'snd.whistle': 'Свисток', 'snd.horn': 'Гудок', 'snd.clapper': 'Трещотка', 'snd.beeps': 'Бипы', 'snd.none': 'Нет', 'vs.loading': 'Загружаю голос…',
       'vs.missing': 'Файлы голоса не найдены — пока говорю голосом iPhone.',
       'vs.download': 'Загружаю голос {p}%…', 'vs.prepare': 'Готовлю голос {p}%…',
 
@@ -63,6 +64,7 @@
       'opt.cmd.sub': '«старт», «пауза», «дальше», «сброс». Микрофон один — топот тогда работает через датчик',
 
       'opt.lang': 'Язык',
+      'opt.font': 'Шрифт цифр', 'font.rounded': 'Скруглённый', 'font.classic': 'Обычный', 'font.din': 'Узкий', 'font.serif': 'С засечками', 'font.mono': 'Табло',
       'opt.flip': 'Перевернуть на 180°', 'opt.flip.sub': 'если картинка вверх ногами',
       'opt.eco': 'Экономный экран', 'opt.eco.sub': 'чёрный фон, цветные цифры',
       'opt.dim': 'Гасить в ожидании через 2 мин', 'opt.dim.sub': 'экран не выключается, топот работает',
@@ -135,8 +137,9 @@
       'workout.hint': 'Swipe to change. <b>Get ready</b> — countdown before round one. <b>Warning</b> — when the knock and “ten seconds” play before the round ends.',
 
       'opt.voice': 'Voice coach', 'opt.voice.sub': 'round number, “ten seconds”, “rest”',
-      'opt.count': 'Count down 5…1 out loud', 'opt.half': '“Halfway” signal mid-round', 'opt.volume': 'Volume',
-      'test': 'Test sound', 'test.start': 'Start', 'test.10': '10 sec', 'test.end': 'End', 'test.voice': 'Voice', 'vs.loading': 'Loading voice…',
+      'opt.count': 'Count 5…1 out loud before round and rest end', 'opt.half': '“Halfway” signal mid-round', 'opt.volume': 'Volume',
+      'snd.title': 'Signals', 'snd.start': 'Round start', 'snd.end': 'Round end', 'snd.warn': 'Before round and rest end',
+      'snd.bell': 'Bell', 'snd.ding': 'Ding', 'snd.gong': 'Gong', 'snd.whistle': 'Whistle', 'snd.horn': 'Horn', 'snd.clapper': 'Clapper', 'snd.beeps': 'Beeps', 'snd.none': 'None', 'vs.loading': 'Loading voice…',
       'vs.missing': 'Voice files not found — using the iPhone voice for now.',
       'vs.download': 'Downloading voice {p}%…', 'vs.prepare': 'Preparing voice {p}%…',
 
@@ -161,6 +164,7 @@
       'opt.cmd.sub': '“start”, “pause”, “next”, “reset”. One mic — stomp then uses the motion sensor',
 
       'opt.lang': 'Language',
+      'opt.font': 'Digit font', 'font.rounded': 'Rounded', 'font.classic': 'Classic', 'font.din': 'Condensed', 'font.serif': 'Serif', 'font.mono': 'Mono',
       'opt.flip': 'Rotate 180°', 'opt.flip.sub': 'if the picture is upside down',
       'opt.eco': 'Battery saver screen', 'opt.eco.sub': 'black background, colored digits',
       'opt.dim': 'Dim when idle after 2 min', 'opt.dim.sub': 'screen stays on, stomp keeps working',

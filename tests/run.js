@@ -311,7 +311,7 @@ function runOld(samples, sens) {
   const PH = require('../voice-phrases.js');
   const l = PH.list(), ids = new Set(l.map(x => x.id));
   check('фразы: id уникальны', ids.size === l.length, l.length + ' фраз');
-  const need = ['prep', 'start', 'box', 'round_1', 'round_30', 'last_round', 'stop_rest', 'left_1', 'left_2', 'left_30', 'warn_10', 'ready_1', 'ready_last', 'half', 'cnt_5', 'pause', 'resume', 'finish'];
+  const need = ['prep', 'box', 'round_1', 'round_30', 'last_round', 'stop_rest', 'left_1', 'left_2', 'left_30', 'warn_10', 'half', 'cnt_5', 'ok', 'finish'];
   check('фразы: все нужные таймеру есть', need.every(i => ids.has(i)), need.filter(i => !ids.has(i)).join(','));
   const t = Object.fromEntries(l.map(x => [x.id, x.text]));
   check('фразы: склонения', t.left_2 === 'Осталось два раунда.' && t.left_5 === 'Осталось пять раундов.' && t.left_21 === 'Остался двадцать один раунд.' && t.warn_10 === 'Десять секунд!', [t.left_2, t.left_5, t.left_21, t.warn_10].join(' | '));
@@ -323,13 +323,13 @@ function runOld(samples, sens) {
   const ru = PH.list('ru'), enl = PH.list('en');
   check('фразы en: те же id, что и ru', ru.length === enl.length && ru.every((x, i) => x.id === enl[i].id), enl.length + ' фраз');
   const t = Object.fromEntries(enl.map(x => [x.id, x.text]));
-  check('фразы en: текст', t.round_3 === 'Round three. Box!' && t.left_7 === 'Seven rounds left.' && t.left_1 === 'One round left.' && t.left_21 === 'Twenty-one rounds left.' && t.warn_10 === 'Ten seconds!' && t.ready_4 === 'Get ready, round four.', [t.round_3, t.left_7, t.left_21, t.ready_4].join(' | '));
+  check('фразы en: текст', t.round_3 === 'Round three. Box!' && t.left_7 === 'Seven rounds left.' && t.left_1 === 'One round left.' && t.left_21 === 'Twenty-one rounds left.' && t.warn_10 === 'Ten seconds!', [t.round_3, t.left_7, t.left_21].join(' | '));
   // Говорит только Артём: у всего, что таймер произносит, должна быть запись, иначе прозвучит голос iPhone.
   const ids = new Set(ru.map(x => x.id));
   const warns = P.choices('warnSec').filter(Boolean);
   check('фразы: на каждое значение «Сигнал за» есть запись', warns.every(w => ids.has('warn_' + w)), warns.filter(w => !ids.has('warn_' + w)).join(','));
   check('фразы: «Готово!» для голосовой настройки', t.ok === 'Done!' && ru.find(x => x.id === 'ok').text === 'Готово!');
-  check('фразы: лишних нет (reset не произносится)', !ids.has('reset'));
+  check('фразы: лишних нет — болтовню убрали (пауза, продолжаем, старт, готовимся)', !['reset', 'pause', 'resume', 'start', 'ready_3', 'ready_last'].some(i => ids.has(i)), ['reset', 'pause', 'resume', 'start', 'ready_3', 'ready_last'].filter(i => ids.has(i)).join(','));
   check('фразы: без языка — русские', PH.list()[3].text === ru[3].text && /Раунд/.test(ru[3].text));
   const I = require('../i18n.js');
   const kr = Object.keys(I.DICT.ru), ke = Object.keys(I.DICT.en);

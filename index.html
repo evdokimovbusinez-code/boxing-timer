@@ -149,13 +149,10 @@
         </div>
         <label class="row"><span data-i18n="opt.half">Сигнал «Половина» в середине раунда</span><input type="checkbox" id="optHalf" class="switch"></label>
         <label class="row"><span data-i18n="opt.volume">Громкость</span><input type="range" id="optVolume" min="0.4" max="2" step="0.05"></label>
-        <div class="field-lbl" data-i18n="test">Проверить звук</div>
-        <div class="sound-test">
-          <button class="btn btn-small" data-sound="bellStart" type="button" data-i18n="test.start">Старт</button>
-          <button class="btn btn-small" data-sound="clapper" type="button" data-i18n="test.10">10 сек</button>
-          <button class="btn btn-small" data-sound="gongEnd" type="button" data-i18n="test.end">Конец</button>
-          <button class="btn btn-small" data-sound="voice" type="button" data-i18n="test.voice">Голос</button>
-        </div>
+        <div class="field-lbl" data-i18n="snd.title">Сигналы</div>
+        <div class="snd-row"><span class="snd-lbl" data-i18n="snd.start">Начало раунда</span><div class="opts" data-snd="sndStart" role="radiogroup"></div></div>
+        <div class="snd-row"><span class="snd-lbl" data-i18n="snd.end">Конец раунда</span><div class="opts" data-snd="sndEnd" role="radiogroup"></div></div>
+        <div class="snd-row"><span class="snd-lbl" data-i18n="snd.warn">Перед концом раунда и отдыха</span><div class="opts" data-snd="sndWarn" role="radiogroup"></div></div>
       </section>
 
       <section data-tab="hands">
@@ -198,6 +195,8 @@
       <section data-tab="general">
         <div class="field-lbl" data-i18n="opt.lang">Язык</div>
         <div class="seg seg-lang" data-lang-seg><button data-v="ru" type="button">Русский</button><button data-v="en" type="button">English</button></div>
+        <div class="field-lbl" data-i18n="opt.font">Шрифт цифр</div>
+        <div class="opts font-opts" id="fontOpts" role="radiogroup"></div>
         <label class="row"><span><span data-i18n="opt.flip">Перевернуть на 180°</span> <em data-i18n="opt.flip.sub"></em></span><input type="checkbox" id="optFlip" class="switch"></label>
         <label class="row"><span><span data-i18n="opt.eco">Экономный экран</span> <em data-i18n="opt.eco.sub"></em></span><input type="checkbox" id="optEco" class="switch"></label>
         <label class="row"><span><span data-i18n="opt.dim">Гасить в ожидании через 2 мин</span> <em data-i18n="opt.dim.sub"></em></span><input type="checkbox" id="optDim" class="switch"></label>
