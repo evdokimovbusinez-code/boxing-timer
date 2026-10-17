@@ -25,7 +25,7 @@
     { key: 'preset.tabata', rounds: 8, roundSec: 20, restSec: 10 }
   ];
   // Добровольная поддержка: ссылка на оплату (банка Monobank / Ko-fi / PayPal). Пусто — кнопки в настройках нет.
-  var DONATE_URL = '';
+  var DONATE_URL = 'https://send.monobank.ua/jar/74AZz4fCCG';
   var KEY = 'boxing-timer.settings.v1';
   var S = Object.assign({}, DEFAULTS);
   var saved = null;
