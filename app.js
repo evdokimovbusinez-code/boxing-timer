@@ -43,6 +43,8 @@
     return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
   }
   var lerp = D.lerp;
+  // Открыто «с экрана Домой» (на весь экран), а не во вкладке Safari.
+  function standalone() { return navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches); }
 
   /* ================= Звук: громкий тракт + синтез сигналов ================= */
   var Sound = {
@@ -324,33 +326,35 @@
   if (Voice.supported) speechSynthesis.onvoiceschanged = function () { Voice.loadSystem(); };
 
   /* ================= Хаптика: отклик на касание ================= */
-  // Вибрации из веба на iPhone нет. Но iOS 18+ даёт системный тик Taptic Engine, когда переключается
-  // <input type="checkbox" switch>. Схема как в библиотеке ios-haptics: на каждый тик — новый скрытый
-  // переключатель, щелчок по его подписи, удаление. Работает только внутри обработчика касания.
+  // Вибрации из веба на iPhone нет. Есть системный тик Taptic Engine, когда переключается
+  // <input type="checkbox" switch> (iOS 18+). С iOS 26.5 программное переключение тика не даёт —
+  // только настоящее касание пальцем. Поэтому, как в ios-haptics 3.1: в каждую кнопку, колесо и на весь
+  // экран таймера вкладываем невидимый переключатель. Палец щёлкает по нему, iOS тикает, клик всплывает
+  // к кнопке как обычно. Ограничения iOS: один тик на касание, при перетаскивании колеса тиков нет.
   // На Android — navigator.vibrate.
   var Haptic = {
     last: 0,
     ios: /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
-    tick: function () {
-      try {
-        var l = document.createElement('label'), i = document.createElement('input');
-        i.type = 'checkbox'; i.setAttribute('switch', ''); i.setAttribute('data-haptic', '');
-        l.setAttribute('aria-hidden', 'true'); l.setAttribute('data-haptic', ''); l.style.display = 'none';
-        l.appendChild(i); document.head.appendChild(l);
-        l.click();
-        document.head.removeChild(l);
-      } catch (e) {}
+    attach: function (el) {
+      if (!this.ios || !el || (el.firstChild && el.firstChild.className === 'haptic-trigger')) return;
+      var n = document.createElement('input');
+      n.type = 'checkbox'; n.className = 'haptic-trigger'; n.setAttribute('switch', '');
+      n.setAttribute('aria-hidden', 'true'); n.tabIndex = -1;
+      if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+      el.insertBefore(n, el.firstChild);
     },
-    /** tick — шаг колеса, tap — кнопка, strong — старт, пауза, сброс (двойной тик). */
+    // Повторно — после смены текста кнопок (textContent стирает вложенный переключатель).
+    attachAll: function () {
+      if (!this.ios) return;
+      document.querySelectorAll('button, .wheel, #stage, #gate').forEach(function (el) { Haptic.attach(el); });
+    },
+    /** tick — шаг колеса, tap — кнопка, strong — старт, пауза, сброс. Вибрирует только Android. */
     play: function (kind) {
       var t = now();
       if (kind === 'tick' && t - this.last < 35) return;
       this.last = t;
       Stomp.touched(); // своя вибрация — тоже «тук» для микрофона и датчика
-      if (navigator.vibrate) { try { navigator.vibrate(kind === 'strong' ? [18, 70, 18] : kind === 'tick' ? 6 : 12); } catch (e) {} return; }
-      if (!this.ios) return;
-      this.tick();
-      if (kind === 'strong') setTimeout(function () { Haptic.tick(); }, 110);
+      if (navigator.vibrate) { try { navigator.vibrate(kind === 'strong' ? [18, 70, 18] : kind === 'tick' ? 6 : 12); } catch (e) {} }
     }
   };
 
@@ -360,9 +364,8 @@
     // В режиме «на экран Домой» до iOS 18.4 Wake Lock обещает, но не держит экран — там включаем видео-обход.
     needVideo: (function () {
       var m = /OS (\d+)_(\d+)/.exec(navigator.userAgent);
-      var standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
       if (!('wakeLock' in navigator)) return true;
-      if (!m || !standalone) return false;
+      if (!m || !standalone()) return false;
       var maj = +m[1], min = +m[2];
       return maj < 18 || (maj === 18 && min < 4);
     })(),
@@ -658,12 +661,12 @@
         $('calStep').textContent = Stomp.needsMic() ? L('cl.step1') : L('cl.setup');
         $('calTitle').textContent = L('cl.title1');
         $('calSub').textContent = L('cl.sub1');
-        $('btnCalNext').textContent = L('cl.next');
+        $('btnCalNext').textContent = L('cl.next'); Haptic.attach($('btnCalNext'));
       } else {
         this.deadline = now() + 10000;
         $('calStep').textContent = L('cl.step2');
         $('calSub').textContent = L('cl.sub2');
-        $('btnCalNext').textContent = L('btn.done');
+        $('btnCalNext').textContent = L('btn.done'); Haptic.attach($('btnCalNext'));
         this.timer = setInterval(function () {
           var left = Math.ceil((self.deadline - now()) / 1000);
           $('calTitle').textContent = L('cl.move', { n: Math.max(0, left) });
@@ -937,7 +940,6 @@
       Voice.loadSystem();
       this.unlocked = true;
       $('gate').hidden = true;
-      $('gateText').textContent = L('gate.text');
       if (Clips.count() < Object.keys(Clips.raw).length) Clips.decodeAll();
       Stomp.apply().then(function () { if (S.commands) Listen.startCommands(); });
       UI.wake();
@@ -1097,7 +1099,8 @@
       var b0 = base();
       if (W.anim) { cancelAnimationFrame(W.anim); W.anim = 0; }
       else W.list = P.choices(d.k, S[d.k]);
-      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+      // На касании захват неявный (к невидимому переключателю — так клик и тик доходят); мышь — захватываем.
+      if (e.pointerType === 'mouse') { try { el.setPointerCapture(e.pointerId); } catch (err) {} }
       W.drag = { ax: axis(), x: e.clientX, y: e.clientY, p0: W.pos, base: b0, t0: now(), moved: 0, hist: [[now(), W.pos]] };
     });
     el.addEventListener('pointermove', function (e) {
@@ -1150,6 +1153,7 @@
       document.querySelectorAll('[data-i18n-html]').forEach(function (el) { el.innerHTML = L(el.dataset.i18nHtml); });
       document.querySelectorAll('[data-i18n-aria]').forEach(function (el) { el.setAttribute('aria-label', L(el.dataset.i18nAria)); });
       document.querySelectorAll('[data-lang-seg] button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.lang); });
+      Haptic.attachAll();
     },
     setLang: function (lang) {
       if (lang === S.lang) return;
@@ -1217,7 +1221,7 @@
 
       this.syncWheels();
       $('summaryText').textContent = L('summary', { rounds: L('n.rounds', { n: S.rounds }), len: fmt(S.roundSec), min: Math.round(S.rounds * S.roundSec / 60) });
-      $('startText').textContent = T.phase === 'done' ? L('btn.again') : L('btn.start');
+      $('planText').textContent = S.rounds + ' × ' + fmt(S.roundSec) + ' · ' + (S.restSec ? L('plan.rest', { t: fmt(S.restSec) }) : L('plan.noRest'));
 
       $('skipText').textContent = this.skipTarget();
       this.resetConfirm(false);
@@ -1269,14 +1273,24 @@
       $('liveCmd').hidden = !(Listen.cmdOn && T.running());
       $('chipVoice').hidden = !Listen.supported;
 
-      var parts = [];
-      if (T.phase === 'idle') {
+      // Внизу экрана готовности — одна строка «как стартовать» и одна мелкая: длительность или совет.
+      var on = S.stompMode !== 'off', hint, sub = '';
+      if (!App.unlocked) {
+        hint = L(on ? 'ready.unlockStomp' : 'ready.unlock');
+        // Совет нужен, пока перчатки не надеты: в Safari панели съедают экран; горизонтально без блокировки — повернётся.
+        if (Haptic.ios && !standalone()) sub = L('ready.home');
+        else if (matchMedia('(orientation: landscape)').matches) sub = L('gate.rot');
+      } else if (T.phase === 'done') {
+        hint = live ? L('ready.doneStomp', { how: how }) : L('ready.done');
+      } else {
         var total = S.prepSec + S.rounds * S.roundSec + Math.max(0, S.rounds - 1) * S.restSec;
-        parts.push(L('total', { min: Math.max(1, Math.round(total / 60)) }));
+        hint = live ? L('ready.tapStomp', { how: how }) : L('ready.tap');
+        sub = L('total', { min: Math.max(1, Math.round(total / 60)) });
       }
-      if (S.stompMode !== 'off') parts.push(live ? L(T.phase === 'done' ? 'st.again' : 'st.start', { how: how }) : L('st.deaf'));
-      $('idleHint').textContent = parts.join(' · ');
-      $('idleDot').hidden = S.stompMode === 'off';
+      if (App.unlocked && on && !live) sub = (sub ? sub + ' · ' : '') + L('st.deaf');
+      $('idleHint').textContent = hint;
+      $('idleSub').textContent = sub;
+      $('idleDot').hidden = !App.unlocked || !on;
       $('idleDot').classList.toggle('on', live);
 
       $('pauseHint').textContent = live ? L('pause.stomp', { how: how }) : L('pause.tap');
@@ -1353,35 +1367,29 @@
       { k: 'prepSec', lbl: 'w.prep', f: function (v) { return v ? fmt(v) : L('none'); } },
       { k: 'warnSec', lbl: 'w.warn', f: function (v) { return v ? v + ' ' + L('unit.s') : L('none'); } }
     ],
-    wheels: [], planWheels: [],
+    wheels: [],
     syncWheels: function () { this.wheels.forEach(function (w) { w.sync(); }); },
     buildSettings: function () {
       var self = this;
-      // Пресеты — на главном экране: одно касание, и колёса прокручиваются к значениям.
+      // Готовые тренировки — над колёсами: одно касание, и колёса прокручиваются к значениям.
       PRESETS.forEach(function (p, i) {
         var b = document.createElement('button');
-        b.className = 'chip preset'; b.type = 'button'; b.dataset.i = i;
-        b.dataset.i18n = p.key; b.textContent = L(p.key);
-        b.title = p.rounds + ' × ' + fmt(p.roundSec) + ' / ' + fmt(p.restSec);
-        b.onclick = function () {
-          self.planWheels.forEach(function (w) { w.go(p[w.key]); });
-        };
-        $('presetBar').appendChild(b);
+        b.className = 'opt preset'; b.type = 'button'; b.dataset.i = i; b.setAttribute('role', 'radio');
+        b.innerHTML = '<b></b><span data-i18n="' + p.key + '"></span>';
+        b.firstChild.textContent = p.rounds + ' × ' + fmt(p.roundSec) + ' / ' + fmt(p.restSec);
+        b.onclick = function () { self.wheels.forEach(function (w) { if (w.key in p) w.go(p[w.key]); }); };
+        $('presets').appendChild(b);
       });
-      // Каждое значение листается колесом; на главном экране — те же колёса для трёх главных.
+      // Каждое значение листается колесом.
       var changed = function () { self.syncPresets(); self.render(true); };
       this.STEPS.forEach(function (d) {
         var cell = document.createElement('div');
         cell.className = 'wheel-cell';
         cell.innerHTML = '<span class="lbl" data-i18n="' + d.lbl + '"></span><div class="wheel wheel-sm" role="slider" data-i18n-aria="' + d.lbl + '"></div>';
         $('steppers').appendChild(cell);
-        self.wheels.push(makeWheel(cell.lastChild, d, changed));
-      });
-      document.querySelectorAll('.plan .wheel').forEach(function (el) {
-        var d = self.STEPS.filter(function (x) { return x.k === el.dataset.k; })[0];
-        var w = makeWheel(el, d, changed);
+        var w = makeWheel(cell.lastChild, d, changed);
         w.key = d.k;
-        self.wheels.push(w); self.planWheels.push(w);
+        self.wheels.push(w);
       });
       document.querySelectorAll('.sheet-nav .tab').forEach(function (b) {
         b.onclick = function () { self.showTab(b.dataset.tab); };
@@ -1482,7 +1490,8 @@
     syncPresets: function () {
       document.querySelectorAll('.preset').forEach(function (b) {
         var p = PRESETS[+b.dataset.i];
-        b.classList.toggle('active', p.rounds === S.rounds && p.roundSec === S.roundSec && p.restSec === S.restSec);
+        var on = p.rounds === S.rounds && p.roundSec === S.roundSec && p.restSec === S.restSec;
+        b.classList.toggle('on', on); b.setAttribute('aria-checked', on);
       });
     },
     syncCal: function () {
@@ -1531,34 +1540,31 @@
   };
 
   /* ================= События ================= */
-  $('btnGate').addEventListener('click', function () { App.unlock(); });
-  $('btnStart').addEventListener('click', function (e) {
-    e.stopPropagation();
-    if (!App.unlocked) App.unlock();
-    Sound.unlock();
-    if (Timer.phase === 'done') Timer.reset();
-    Timer.start();
-  });
+  $('gate').addEventListener('click', function () { App.unlock(); });
+  // Весь экран — одна большая кнопка: первое касание включает звук и топот, дальше — старт и пауза.
   $('stage').addEventListener('click', function (e) {
     UI.wake();
     if (e.target.closest('button, .pause-controls')) return;
-    if (Timer.running()) { Haptic.play('strong'); if (Timer.paused) Timer.resume(); else Timer.pause(); }
+    if (!App.unlocked) { App.unlock(); return; }
+    var T = Timer;
+    if (T.phase === 'idle') { Haptic.play('strong'); T.start(); }
+    else if (T.phase === 'done') T.reset(); // с итога — к готовности; случайное касание не запустит 10 раундов
+    else if (T.paused) { Haptic.play('strong'); T.resume(); }
+    else { Haptic.play('strong'); T.pause(); }
   });
   $('dim').addEventListener('click', function () { UI.wake(); });
   // Тик на каждую кнопку, переключатель и список. Главные действия — двойной тик.
   document.addEventListener('click', function (e) {
     var t = e.target;
-    if (t.closest && t.closest('[data-haptic]')) return;
     var b = t.closest && t.closest('button, input[type="checkbox"], select');
     if (!b || b.disabled) return;
-    var strong = b.id === 'btnStart' || b.id === 'btnResume' || b.id === 'btnGate' || (b.id === 'btnReset' && b.classList.contains('confirm'));
+    var strong = b.id === 'btnResume' || b.id === 'btnGate' || (b.id === 'btnReset' && b.classList.contains('confirm'));
     Haptic.play(strong ? 'strong' : 'tap');
   }, true);
   $('btnResume').onclick = function () { Timer.resume(); };
   $('btnSkip').onclick = function () { Timer.skip(); };
   $('btnReset').onclick = function () { if (this.classList.contains('confirm')) Timer.reset(); else UI.resetConfirm(true); };
-  $('btnEdit').onclick = function () { Timer.reset(); };
-  $('idleStatus').onclick = function () { if (S.stompMode !== 'off') UI.openSettings('hands'); };
+  $('planBtn').onclick = function () { UI.openSettings('workout'); };
   $('btnPauseSettings').onclick = function () { UI.openSettings(); };
   $('chipSettings').onclick = function () { UI.openSettings(); };
   $('chipVoice').onclick = function () { Listen.once(); };
@@ -1574,6 +1580,8 @@
     if (e.key === 'n' || e.key === 'т') Timer.skip();
     if (e.key === 'r' || e.key === 'к') Timer.reset();
   });
+
+  window.addEventListener('resize', function () { if (!App.unlocked) UI.renderStatus(); }); // совет про поворот
 
   var hiddenAt = 0;
   document.addEventListener('visibilitychange', function () {
