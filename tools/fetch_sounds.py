@@ -20,17 +20,22 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "sounds" / "cand"
 API = "https://commons.wikimedia.org/w/api.php"
 UA = "boxing-timer-sounds/1.0 (https://github.com/evdokimovbusinez-code/boxing-timer)"
-PER_CAT = 4
+PER_CAT = 5
 
 # Что ищем и сколько секунд оставляем. tick — один щелчок, его играем каждую секунду сами.
 CATS = {
-    "bell":    {"q": ["boxing bell", "boxing ring bell", "bell ring", "school bell", "hand bell"], "max": 3.0},
+    "bell":    {"q": ["boxing bell", "ring bell", "dingdingding", "bell ding", "service bell", "desk bell", "bell-ring",
+                      "school bell", "hand bell"], "max": 3.0},
     "gong":    {"q": ["gong"], "max": 4.0},
-    "whistle": {"q": ["referee whistle", "whistle blow", "whistle"], "max": 1.6},
-    "horn":    {"q": ["air horn", "horn blast", "car horn", "horn"], "max": 1.8},
-    "clapper": {"q": ["wood block", "woodblock", "claves", "clapper", "drumsticks click"], "max": 1.2},
-    "tick":    {"q": ["clock tick", "ticking clock", "metronome", "clock ticking"], "max": 0.14},
+    "whistle": {"q": ["referee whistle", "sports whistle", "whistle blow", "pea whistle", "whistle"], "max": 1.6},
+    "horn":    {"q": ["air horn", "airhorn", "stadium horn", "horn blast", "fog horn", "car horn"], "max": 1.8},
+    "sticks":  {"q": ["wood block", "woodblock", "temple block", "claves", "drumsticks", "stick click", "clapper"],
+                "max": 1.2},
+    "tick":    {"q": ["clock tick", "clock ticking", "ticking clock", "metronome", "tick tock"], "max": 0.14},
 }
+# Словарные записи (произношение слов: «tick-borne encephalitis», «whistle-blower») — не звуки.
+SKIP = re.compile(r"^File:(LL-Q|En-|De-|Fr-|Ru-|Es-|It-|Nl-|Pl-)|pronunciation|spoken|wikipedia|laughter|speech",
+                  re.I)
 
 
 def get(url, binary=False):
@@ -124,7 +129,8 @@ def main():
             for r in results:
                 if n >= PER_CAT:
                     break
-                if r["title"] in seen or not r["url"] or r["size"] > 15_000_000 or not free_license(r["license"]):
+                if (r["title"] in seen or not r["url"] or r["size"] > 15_000_000 or SKIP.search(r["title"])
+                        or not free_license(r["license"])):
                     continue
                 seen.add(r["title"])
                 ext = Path(urllib.parse.urlparse(r["url"]).path).suffix or ".bin"

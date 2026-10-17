@@ -44,7 +44,10 @@
       'opt.voice': 'Голосовой помощник', 'opt.voice.sub': 'номер раунда, «10 секунд», «отдых»',
       'opt.count': 'Считать вслух 5…1 перед концом раунда и отдыха', 'opt.half': 'Сигнал «Половина» в середине раунда', 'opt.volume': 'Громкость',
       'snd.title': 'Сигналы', 'snd.start': 'Начало раунда', 'snd.end': 'Конец раунда', 'snd.warn': 'Перед концом раунда и отдыха',
-      'snd.bell': 'Звонок', 'snd.ding': 'Колокол', 'snd.gong': 'Гонг', 'snd.whistle': 'Свисток', 'snd.horn': 'Гудок', 'snd.clapper': 'Трещотка', 'snd.beeps': 'Бипы', 'snd.none': 'Нет', 'vs.loading': 'Загружаю голос…',
+      'snd.bell': 'Звонок', 'snd.ding': 'Колокол', 'snd.gong': 'Гонг', 'snd.whistle': 'Свисток', 'snd.horn': 'Гудок', 'snd.clapper': 'Трещотка', 'snd.beeps': 'Бипы', 'snd.none': 'Нет',
+      'snd.r_bell': 'Ринг · запись', 'snd.r_gong': 'Гонг · запись', 'snd.r_whistle': 'Свисток · запись', 'snd.r_horn': 'Горн · запись', 'snd.r_sticks': 'Палочки · запись',
+      'tick.title': 'Тиканье в конце раунда и отдыха', 'tick.0': 'Нет', 'tick.5': '5 с', 'tick.10': '10 с',
+      'vs.loading': 'Загружаю голос…',
       'vs.missing': 'Файлы голоса не найдены — пока говорю голосом iPhone.',
       'vs.download': 'Загружаю голос {p}%…', 'vs.prepare': 'Готовлю голос {p}%…',
 
@@ -148,7 +151,10 @@
       'opt.voice': 'Voice coach', 'opt.voice.sub': 'round number, “ten seconds”, “rest”',
       'opt.count': 'Count 5…1 out loud before round and rest end', 'opt.half': '“Halfway” signal mid-round', 'opt.volume': 'Volume',
       'snd.title': 'Signals', 'snd.start': 'Round start', 'snd.end': 'Round end', 'snd.warn': 'Before round and rest end',
-      'snd.bell': 'Bell', 'snd.ding': 'Ding', 'snd.gong': 'Gong', 'snd.whistle': 'Whistle', 'snd.horn': 'Horn', 'snd.clapper': 'Clapper', 'snd.beeps': 'Beeps', 'snd.none': 'None', 'vs.loading': 'Loading voice…',
+      'snd.bell': 'Bell', 'snd.ding': 'Ding', 'snd.gong': 'Gong', 'snd.whistle': 'Whistle', 'snd.horn': 'Horn', 'snd.clapper': 'Clapper', 'snd.beeps': 'Beeps', 'snd.none': 'None',
+      'snd.r_bell': 'Ring bell · rec', 'snd.r_gong': 'Gong · rec', 'snd.r_whistle': 'Whistle · rec', 'snd.r_horn': 'Air horn · rec', 'snd.r_sticks': 'Sticks · rec',
+      'tick.title': 'Ticking at the end of round and rest', 'tick.0': 'Off', 'tick.5': '5 s', 'tick.10': '10 s',
+      'vs.loading': 'Loading voice…',
       'vs.missing': 'Voice files not found — using the iPhone voice for now.',
       'vs.download': 'Downloading voice {p}%…', 'vs.prepare': 'Preparing voice {p}%…',
 

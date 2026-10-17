@@ -12,7 +12,7 @@
   var DEFAULTS = {
     rounds: 10, roundSec: 120, restSec: 60, prepSec: 10, warnSec: 10,
     lang: 'ru', voice: true, volume: 1.4, loudRounds: true,
-    countVoice: true, halfVoice: false, sndStart: 'bell', sndEnd: 'gong', sndWarn: 'clapper', font: 'rounded', rev: 3,
+    countVoice: true, halfVoice: false, sndStart: 'bell', sndEnd: 'gong', sndWarn: 'clapper', tickSec: 5, font: 'rounded', rev: 3,
     stompMode: 'mic', stompPattern: 'double', stompInRound: false, sens: 0.55,
     calMic: null, calMotion: null, stompModel: null,
     commands: false, flip: false, eco: false, dimIdle: true
@@ -76,6 +76,7 @@
     unlock: function () {
       this.init();
       if (!this.ctx) return Promise.resolve();
+      this.decodeSamples();
       var b = this.ctx.createBuffer(1, 1, 22050), s = this.ctx.createBufferSource();
       s.buffer = b; s.connect(this.ctx.destination); s.start(0);
       return this.ctx.state === 'running' ? Promise.resolve() : this.ctx.resume().catch(function () {});
@@ -105,11 +106,51 @@
     GONG: [[1, 0.7], [1.004, 0.5], [1.5, 0.45], [2.0, 0.7], [2.92, 0.55], [4.07, 0.4], [5.2, 0.25], [6.8, 0.12]],
 
     // Сигналы на выбор (Настройки → Звук). Возвращает длительность в мс — голос вступает после сигнала.
-    SIGNALS: ['bell', 'ding', 'gong', 'whistle', 'horn', 'clapper', 'beeps', 'none'],
+    // r_* — настоящие записи (sounds/*.mp3, свободные лицензии — sounds/LICENSES.md); нет файла — их не видно в выборе.
+    SIGNALS: ['r_bell', 'r_gong', 'r_whistle', 'r_horn', 'r_sticks', 'bell', 'ding', 'gong', 'whistle', 'horn', 'clapper', 'beeps', 'none'],
+    SAMPLES: ['r_bell', 'r_gong', 'r_whistle', 'r_horn', 'r_sticks', 'tick'],
+    raw: {}, buf: {},
+    // Записи скачиваем сразу, раскодируем, когда есть звук (AudioContext).
+    loadSamples: function () {
+      var self = this;
+      this.SAMPLES.forEach(function (n) {
+        // В приложении (Capacitor) mp3 приходят со status 0 — это не ошибка.
+        fetch('sounds/' + n + '.mp3').then(function (r) { return r.ok || r.status === 0 ? r.arrayBuffer() : null; })
+          .then(function (ab) { if (ab && ab.byteLength) { self.raw[n] = ab; self.decodeSamples(); } })
+          .catch(function () {});
+      });
+    },
+    decodeSamples: function () {
+      var self = this;
+      if (!this.ctx) return;
+      Object.keys(this.raw).forEach(function (n) {
+        if (self.buf[n] || self.raw[n].pending) return;
+        self.raw[n].pending = true;
+        try {
+          self.ctx.decodeAudioData(self.raw[n].slice(0), function (b) { self.buf[n] = b; if (typeof UI !== 'undefined') UI.syncOpts(); }, function () {});
+        } catch (e) {}
+      });
+    },
+    has: function (name) { return name.indexOf('r_') !== 0 || !!this.raw[name]; },
+    sample: function (name, t, gain) {
+      var c = this.ctx, b = this.buf[name];
+      if (!b) return 0;
+      var s = c.createBufferSource(), g = c.createGain();
+      s.buffer = b; g.gain.value = gain == null ? 1 : gain;
+      s.connect(g); g.connect(this.master); s.start(t);
+      return b.duration;
+    },
     play: function (name) {
       if (!this.ctx || !name || name === 'none') return 0;
       if (this.ctx.state !== 'running') this.ctx.resume().catch(function () {});
       var t = this.ctx.currentTime + 0.03, self = this, len = 0;
+      // Запись ещё не готова (или файла нет) — играем похожий синтезированный сигнал.
+      if (name.indexOf('r_') === 0) {
+        len = this.sample(name, t, 1);
+        if (!len) return this.play({ r_bell: 'bell', r_gong: 'gong', r_whistle: 'whistle', r_horn: 'horn', r_sticks: 'clapper' }[name]);
+        // Голос вступает, когда основной удар отзвучал, — не ждём весь хвост гонга.
+        len = Math.min(len, 1.3);
+      }
       switch (name) {
         case 'bell': // три быстрых высоких «дзынь» — как звонок на ринге
           [0, 0.28, 0.56].forEach(function (dt) { self.strike(t + dt, 1320, self.BELL, 1.2, 0.7); });
@@ -134,6 +175,9 @@
         case 'beepHigh': this.tone(t, 2093, 0.17, 0.75); len = 0.2; break;
         case 'blip': this.tone(t, 1400, 0.06, 0.4); this.tone(t + 0.07, 1900, 0.08, 0.4); len = 0.15; break;
         case 'pauseTone': this.tone(t, 1900, 0.07, 0.4); this.tone(t + 0.08, 1300, 0.1, 0.4); len = 0.2; break;
+        case 'tick': // тиканье последних секунд; под голосом — тише, чтобы не мешать
+          if (!this.sample('tick', t, Voice.isSpeaking() ? 0.35 : 0.9)) this.knock(t);
+          len = 0.1; break;
       }
       this.mark(len + 0.6); // пока звучит свой сигнал, топот не слушаем
       return Math.round(len * 1000);
@@ -871,8 +915,11 @@
         Voice.later(280, ['half']);
       }
       var countFrom = Math.min(5, Math.ceil(this.dur / 1000) - 1);
-      if (S.countVoice && S.voice && sec >= 1 && sec <= countFrom && sec < w) Voice.speak(['cnt_' + sec]);
+      // Тиканье последних секунд (владелец: «чтобы слышать, что конец близко»). Не в ту же секунду, что сигнал «перед концом».
+      var tick = S.tickSec > 0 && sec >= 1 && sec <= S.tickSec && sec !== w && this.dur > (S.tickSec + 2) * 1000;
+      if (S.countVoice && S.voice && sec >= 1 && sec <= countFrom && sec < w) { Voice.speak(['cnt_' + sec]); if (tick) Sound.play('tick'); }
       else if (sec >= 1 && sec <= 3) Sound.play(p === 'round' ? 'beep' : 'beepHigh');
+      else if (tick) Sound.play('tick');
     }
   };
 
@@ -1189,8 +1236,12 @@
     },
     syncOpts: function () {
       document.querySelectorAll('[data-snd]').forEach(function (box) {
-        box.querySelectorAll('.opt').forEach(function (b) { var on = S[box.dataset.snd] === b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+        box.querySelectorAll('.opt').forEach(function (b) {
+          var on = S[box.dataset.snd] === b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on);
+          b.hidden = !Sound.has(b.dataset.v) && !on;
+        });
       });
+      document.querySelectorAll('#tickOpts .opt').forEach(function (b) { var on = S.tickSec === +b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
       document.querySelectorAll('#fontOpts .opt').forEach(function (b) { var on = S.font === b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
     },
 
@@ -1431,6 +1482,16 @@
           box.appendChild(b);
         });
       });
+      // Тиканье: выкл / последние 5 / 10 секунд раунда и отдыха. Касание — выбрать и сразу услышать.
+      [0, 5, 10].forEach(function (v) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'opt'; b.dataset.v = v; b.dataset.i18n = 'tick.' + v; b.setAttribute('role', 'radio');
+        b.onclick = function () {
+          S.tickSec = v; save(); Sound.unlock(); self.syncOpts();
+          if (v) [0, 1, 2].forEach(function (k) { setTimeout(function () { Sound.play('tick'); }, k * 1000); });
+        };
+        $('tickOpts').appendChild(b);
+      });
       // Шрифт цифр: каждый вариант показан своим шрифтом.
       Object.keys(FONTS).forEach(function (v) {
         var b = document.createElement('button');
@@ -1625,6 +1686,7 @@
   UI.buildSettings();
   UI.applyLang();
   Voice.loadSystem();
+  Sound.loadSamples();
   Clips.load(curVoice());
   UI.syncSettings();
   UI.render(true);
