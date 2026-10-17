@@ -1,6 +1,7 @@
 {
  "label": "Денис",
  "engine": "piper",
+ "lang": "ru",
  "clips": {
   "prep": "Приготовиться!",
   "start": "Старт!",
