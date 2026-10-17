@@ -2,29 +2,38 @@
 (function () {
   'use strict';
 
-  var P = window.BoxParse, D = window.BoxDetect, PH = window.BoxPhrases;
+  var P = window.BoxParse, D = window.BoxDetect, PH = window.BoxPhrases, I = window.BoxI18n;
   var $ = function (id) { return document.getElementById(id); };
   var now = function () { return performance.now(); };
 
   /* ================= Настройки ================= */
   var DEFAULTS = {
     rounds: 10, roundSec: 120, restSec: 60, prepSec: 10, warnSec: 10,
-    voice: true, voiceId: 'dmitri', sysVoiceURI: '', volume: 1.4, loudRounds: true,
+    lang: 'ru', voice: true, voiceId: 'dmitri', voiceIdEn: 'en-ryan', sysVoiceURI: '', volume: 1.4, loudRounds: true,
     countVoice: false, halfVoice: false,
     stompMode: 'mic', stompPattern: 'double', stompInRound: false, sens: 0.55,
     calMic: null, calMotion: null, stompModel: null,
     commands: false, flip: false, eco: false, dimIdle: true
   };
   var PRESETS = [
-    { name: 'Спарринг', rounds: 10, roundSec: 120, restSec: 60 },
-    { name: 'Проф', rounds: 12, roundSec: 180, restSec: 60 },
-    { name: 'Любители', rounds: 3, roundSec: 180, restSec: 60 },
-    { name: 'Мешок', rounds: 6, roundSec: 180, restSec: 30 },
-    { name: 'Табата', rounds: 8, roundSec: 20, restSec: 10 }
+    { key: 'preset.spar', rounds: 10, roundSec: 120, restSec: 60 },
+    { key: 'preset.pro', rounds: 12, roundSec: 180, restSec: 60 },
+    { key: 'preset.amateur', rounds: 3, roundSec: 180, restSec: 60 },
+    { key: 'preset.bag', rounds: 6, roundSec: 180, restSec: 30 },
+    { key: 'preset.tabata', rounds: 8, roundSec: 20, restSec: 10 }
   ];
   var KEY = 'boxing-timer.settings.v1';
   var S = Object.assign({}, DEFAULTS);
-  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  if (saved) Object.assign(S, saved);
+  // Язык: у тех, кто уже пользовался, — русский как был; новому — по языку телефона.
+  if (!saved || !saved.lang) S.lang = saved ? 'ru' : (/^ru|^uk|^be|^kk/i.test(navigator.language || 'ru') ? 'ru' : 'en');
+  /** Текст интерфейса на текущем языке. */
+  function L(k, v) { return I.t(S.lang, k, v); }
+  // Голос выбирается отдельно для каждого языка.
+  var vKey = function () { return S.lang === 'en' ? 'voiceIdEn' : 'voiceId'; };
+  var curVoice = function () { return S[vKey()]; };
   if (S.volume < 0.4) S.volume = 0.4;
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
@@ -137,7 +146,9 @@
 
   /* ================= Нейроголос: готовые файлы, офлайн ================= */
   var TEXTS = {};
-  PH.list().forEach(function (p) { TEXTS[p.id] = p.text; });
+  function loadTexts() { TEXTS = {}; PH.list(S.lang).forEach(function (p) { TEXTS[p.id] = p.text; }); }
+  loadTexts();
+  var speechLang = function () { return S.lang === 'en' ? 'en-US' : 'ru-RU'; };
 
   var Clips = {
     voices: [], voiceId: null, raw: {}, buf: {}, total: 0, loading: false, active: [], gen: 0,
@@ -187,6 +198,13 @@
         .then(function () { UI.voiceStatus(); });
     },
     count: function () { return Object.keys(this.buf).length; },
+    /** Голоса текущего языка (в index.json у голоса есть lang; старые без него — русские). */
+    forLang: function () { return this.voices.filter(function (v) { return (v.lang || 'ru') === S.lang; }); },
+    // Если выбранного голоса для языка нет — берём первый нейроголос языка, а если их нет — голос iPhone.
+    pick: function () {
+      var ids = this.forLang().map(function (v) { return v.id; }), cur = curVoice();
+      if (cur !== 'system' && ids.indexOf(cur) < 0) { S[vKey()] = ids[0] || 'system'; save(); }
+    },
     ready: function (ids) {
       if (!ids.length || !Sound.ctx || !this.voiceId || this.voiceId === 'system') return false;
       for (var i = 0; i < ids.length; i++) if (!this.buf[ids[i]]) return false;
@@ -217,13 +235,14 @@
     loadSystem: function () {
       if (!this.supported) return;
       var all = speechSynthesis.getVoices() || [];
-      this.sysVoices = all.filter(function (v) { return /^ru/i.test(v.lang); });
+      var re = S.lang === 'en' ? /^en/i : /^ru/i;
+      this.sysVoices = all.filter(function (v) { return re.test(v.lang); });
       this.sysVoice = (S.sysVoiceURI && this.sysVoices.find(function (v) { return v.voiceURI === S.sysVoiceURI; })) ||
         this.sysVoices.find(function (v) { return /premium|enhanced|улучш/i.test(v.name); }) || this.sysVoices[0] || null;
     },
     unlock: function () {
       if (!this.supported) return;
-      var u = new SpeechSynthesisUtterance(' '); u.volume = 0; u.lang = 'ru-RU';
+      var u = new SpeechSynthesisUtterance(' '); u.volume = 0; u.lang = speechLang();
       speechSynthesis.speak(u);
     },
     busy: function (ms) {
@@ -250,7 +269,7 @@
       var go = function () {
         self.timer = null;
         var u = new SpeechSynthesisUtterance(text);
-        u.lang = 'ru-RU';
+        u.lang = speechLang();
         if (self.sysVoice) u.voice = self.sysVoice;
         u.rate = opts.rate || 1.05; u.pitch = 1; u.volume = 1;
         var est = 400 + text.length * 75 / u.rate;
@@ -384,7 +403,7 @@
         // Если iPhone каждый раз спрашивает разрешение — выключаем этот режим, чтобы не мешать тренировке.
         if (now() - t0 > 1800 && S.loudRounds) {
           S.loudRounds = false; save(); UI.syncSettings();
-          UI.toast('iPhone каждый раз спрашивал микрофон — теперь он не выключается на тренировку');
+          UI.toast(L('t.loudOff'));
         }
         UI.renderStatus();
       });
@@ -407,7 +426,7 @@
       if (this.starting) return this.starting;
       if (this.stream) this.stopMic();
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        UI.toast('Микрофон недоступен в этом браузере'); return Promise.resolve();
+        UI.toast(L('t.noMicApi')); return Promise.resolve();
       }
       Sound.init();
       var c = Sound.ctx;
@@ -448,7 +467,7 @@
         }
         stream.getAudioTracks()[0].addEventListener('ended', function () { self.stopMic(); UI.renderStatus(); });
       }).catch(function () {
-        UI.toast('Нет доступа к микрофону — разреши в Настройках iPhone или выбери «Датчик»');
+        UI.toast(L('t.noMic'));
       }).then(function () { self.starting = null; });
       return this.starting;
     },
@@ -527,10 +546,10 @@
       };
       if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
         return DeviceMotionEvent.requestPermission().then(function (r) {
-          if (r === 'granted') begin(); else UI.toast('Нет доступа к датчику движения');
-        }).catch(function () { UI.toast('Датчик: нажми «Включить» ещё раз'); });
+          if (r === 'granted') begin(); else UI.toast(L('t.noMotion'));
+        }).catch(function () { UI.toast(L('t.motionAgain')); });
       }
-      if (typeof DeviceMotionEvent === 'undefined') { UI.toast('Датчик движения недоступен'); return Promise.resolve(); }
+      if (typeof DeviceMotionEvent === 'undefined') { UI.toast(L('t.motionNA')); return Promise.resolve(); }
       begin();
       return Promise.resolve();
     },
@@ -581,10 +600,10 @@
   var Cal = {
     step: 0, pos: [], neg: [], mot: null, timer: null, deadline: 0,
     open: function () {
-      if (S.stompMode === 'off') { UI.toast('Сначала выбери микрофон или датчик'); return; }
+      if (S.stompMode === 'off') { UI.toast(L('cl.needMode')); return; }
       var self = this;
       Stomp.apply().then(function () {
-        if (!Stomp.listening()) { UI.toast('Топот не слушается — проверь разрешения'); return; }
+        if (!Stomp.listening()) { UI.toast(L('cl.deaf')); return; }
         self.pos = []; self.neg = []; self.mot = new D.PeakCollector(4);
         Stomp.dbl.clear();
         Stomp.cal = {
@@ -600,18 +619,18 @@
       this.step = n;
       clearInterval(this.timer);
       if (n === 1) {
-        $('calStep').textContent = Stomp.needsMic() ? 'Шаг 1 из 2' : 'Настройка';
-        $('calTitle').textContent = 'Топни 5 раз';
-        $('calSub').textContent = 'По одному, с паузой около секунды, как будешь запускать таймер. Телефон — там, где он обычно лежит.';
-        $('btnCalNext').textContent = 'Дальше';
+        $('calStep').textContent = Stomp.needsMic() ? L('cl.step1') : L('cl.setup');
+        $('calTitle').textContent = L('cl.title1');
+        $('calSub').textContent = L('cl.sub1');
+        $('btnCalNext').textContent = L('cl.next');
       } else {
         this.deadline = now() + 10000;
-        $('calStep').textContent = 'Шаг 2 из 2';
-        $('calSub').textContent = 'Теперь НЕ топай: походи, попрыгай, побей по лапам или мешку рядом, поговори. Модель запомнит, что это не топот.';
-        $('btnCalNext').textContent = 'Готово';
+        $('calStep').textContent = L('cl.step2');
+        $('calSub').textContent = L('cl.sub2');
+        $('btnCalNext').textContent = L('btn.done');
         this.timer = setInterval(function () {
           var left = Math.ceil((self.deadline - now()) / 1000);
-          $('calTitle').textContent = 'Двигайся: ' + Math.max(0, left) + ' с';
+          $('calTitle').textContent = L('cl.move', { n: Math.max(0, left) });
           if (left <= 0) self.finish();
         }, 250);
       }
@@ -654,16 +673,15 @@
         var y = this.pos.map(function () { return 1; }).concat(this.neg.map(function () { return 0; }));
         var m = D.trainModel(X, y);
         S.stompModel = m;
-        msg.push(m ? 'модель обучена: ' + this.pos.length + ' топов, ' + this.neg.length + ' «не топов», точность ' + Math.round(m.acc * 100) + '%'
-          : 'порог настроен (для модели не хватило примеров «не топа» — подвигайся активнее на шаге 2)');
+        msg.push(m ? L('cl.trained', { pos: this.pos.length, neg: this.neg.length, acc: Math.round(m.acc * 100) }) : L('cl.thrOnly'));
       }
       if (Stomp.needsMotion()) {
         var lv = this.mot.level();
-        if (lv) { S.calMotion = lv; msg.push('датчик настроен'); } else msg.push('датчик не почувствовал топот');
+        if (lv) { S.calMotion = lv; msg.push(L('cl.motionOk')); } else msg.push(L('cl.motionNo'));
       }
       save();
       UI.syncCal();
-      UI.toast(msg.length ? 'Готово: ' + msg.join(', ') : 'Не поймал топот — попробуй ещё раз');
+      UI.toast(msg.length ? L('cl.done', { msg: msg.join(', ') }) : L('cl.fail'));
       Sound.play('blip');
     },
     cancel: function () {
@@ -749,7 +767,7 @@
     announce: function (p) {
       var r = this.round, total = S.rounds;
       if (p === 'prep') {
-        Voice.later(400, ['prep'], 'Приготовиться. ' + total + ' ' + P.plural(total, ['раунд', 'раунда', 'раундов']));
+        Voice.later(400, ['prep'], L('say.prep', { rounds: L('n.rounds', { n: total }) }));
       } else if (p === 'round') {
         Sound.play('bellStart');
         var id = total > 1 && r === total ? 'last_round' : (total > 1 && r <= PH.MAX_ROUNDS ? 'round_' + r : 'box');
@@ -792,7 +810,7 @@
         if (w > 0 && sec === w && this.dur > (w + 2) * 1000) {
           Sound.play('clapper');
           if (PH.WARN.indexOf(w) >= 0) Voice.later(420, ['warn_' + w]);
-          else Voice.later(420, [], w + ' ' + P.plural(w, ['секунда', 'секунды', 'секунд']));
+          else Voice.later(420, [], L('say.seconds', { n: w }));
         }
         if (S.halfVoice && this.dur >= 60000 && sec === Math.round(this.dur / 2000) && sec > w + 2) {
           Sound.play('beepHigh');
@@ -817,16 +835,16 @@
     supported: !!SR, rec: null, cmdOn: false, oneShot: false,
 
     once: function () {
-      if (!this.supported) { UI.toast('Распознавание речи не поддерживается. Обнови iOS или открой в Safari.'); return; }
+      if (!this.supported) { UI.toast(L('vl.unsupported')); return; }
       this.stopCommands(true);
       Stomp.paused = true; Stomp.stopMic();
       Voice.cancel();
       var r = new SR(); this.rec = r; this.oneShot = true;
-      r.lang = 'ru-RU'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+      r.lang = speechLang(); r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
       var layer = $('voiceLayer');
       layer.hidden = false; layer.classList.add('listening');
       $('voiceText').textContent = ''; $('voiceResult').textContent = '';
-      $('voicePrompt').textContent = 'Говори: «10 раундов по 2 минуты, отдых минута»';
+      $('voicePrompt').textContent = L('vl.prompt');
       var finalText = '';
       r.onresult = function (e) {
         var txt = '';
@@ -835,7 +853,7 @@
         if (e.results[e.results.length - 1].isFinal) finalText = txt;
       };
       r.onerror = function (e) {
-        $('voiceResult').textContent = e.error === 'not-allowed' ? 'Нет доступа к микрофону/речи' : 'Не расслышал, попробуй ещё раз';
+        $('voiceResult').textContent = e.error === 'not-allowed' ? L('vl.noAccess') : L('vl.again');
       };
       r.onend = function () {
         layer.classList.remove('listening');
@@ -859,7 +877,7 @@
       this.cmdOn = true;
       var self = this;
       var r = new SR(); this.rec = r;
-      r.lang = 'ru-RU'; r.continuous = true; r.interimResults = false;
+      r.lang = speechLang(); r.continuous = true; r.interimResults = false;
       r.onresult = function (e) {
         var res = e.results[e.results.length - 1];
         if (!res.isFinal) return;
@@ -869,7 +887,7 @@
       r.onerror = function (e) {
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
           self.cmdOn = false; S.commands = false; save(); UI.syncSettings();
-          UI.toast('iPhone не дал доступ к распознаванию речи');
+          UI.toast(L('t.noSR'));
         }
       };
       r.onend = function () { if (self.cmdOn) setTimeout(function () { try { r.start(); } catch (e) {} }, 250); };
@@ -894,7 +912,7 @@
       Voice.loadSystem();
       this.unlocked = true;
       $('gate').hidden = true;
-      $('gateText').textContent = 'Нажми один раз — iPhone разрешит звук, голос и датчики для топота.';
+      $('gateText').textContent = L('gate.text');
       if (Clips.count() < Object.keys(Clips.raw).length) Clips.decodeAll();
       Stomp.apply().then(function () { if (S.commands) Listen.startCommands(); });
       UI.wake();
@@ -954,11 +972,11 @@
         var msg = App.describe();
         $('voiceResult').textContent = msg;
         UI.toast(msg);
-        Voice.say(msg + '. Готово');
+        Voice.say(L('say.ok', { msg: msg }));
         if (cmd !== 'start') return;
       }
       if (!cmd) {
-        if (fromOnce) $('voiceResult').textContent = 'Не понял. Пример: «12 раундов по 3 минуты, отдых минута»';
+        if (fromOnce) $('voiceResult').textContent = L('vl.notUnderstood');
         return;
       }
       if (fromOnce) { $('voiceLayer').hidden = true; Stomp.paused = false; Stomp.apply(); if (S.commands) Listen.startCommands(); }
@@ -971,8 +989,7 @@
     },
 
     describe: function () {
-      return S.rounds + ' ' + P.plural(S.rounds, ['раунд', 'раунда', 'раундов']) +
-        ' по ' + fmt(S.roundSec) + ', отдых ' + (S.restSec ? fmt(S.restSec) : 'нет');
+      return L('describe', { rounds: L('n.rounds', { n: S.rounds }), len: fmt(S.roundSec), rest: S.restSec ? fmt(S.restSec) : L('none') });
     }
   };
 
@@ -1091,6 +1108,23 @@
   var UI = {
     lastKey: '', lastClock: '', lastActive: now(),
 
+    // Язык: тексты из словаря по data-i18n (текст), data-i18n-html (с разметкой), data-i18n-aria (подпись для VoiceOver).
+    applyLang: function () {
+      document.documentElement.lang = S.lang;
+      document.title = L('app.title');
+      document.querySelectorAll('[data-i18n]').forEach(function (el) { el.textContent = L(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-html]').forEach(function (el) { el.innerHTML = L(el.dataset.i18nHtml); });
+      document.querySelectorAll('[data-i18n-aria]').forEach(function (el) { el.setAttribute('aria-label', L(el.dataset.i18nAria)); });
+      document.querySelectorAll('[data-lang-seg] button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.lang); });
+    },
+    setLang: function (lang) {
+      if (lang === S.lang) return;
+      S.lang = lang; save();
+      loadTexts(); Voice.loadSystem(); Clips.pick(); Clips.load(curVoice());
+      if (Listen.cmdOn) { Listen.stopCommands(true); Listen.startCommands(); } // распознавание — на новом языке
+      this.applyLang(); this.syncSettings(); this.render(true);
+      if (!$('settings').hidden) this.showTab(this.tab);
+    },
     applyLook: function () {
       document.body.classList.toggle('flip', !!S.flip);
       document.body.classList.toggle('eco', !!S.eco);
@@ -1132,18 +1166,17 @@
       this.syncBar();
 
       // Сверху слева — что сейчас, справа — какой раунд (в отдыхе — какой следующий).
-      var labels = { idle: '', prep: 'ГОТОВЬСЯ', round: 'БОКС', rest: 'ОТДЫХ', done: '' };
-      $('phaseLabel').textContent = T.paused ? 'ПАУЗА' : labels[T.phase];
+      var labels = { idle: '', prep: L('ph.prep'), round: L('ph.round'), rest: L('ph.rest'), done: '' };
+      $('phaseLabel').textContent = T.paused ? L('ph.pause') : labels[T.phase];
       var last = S.rounds > 1, rl = '';
-      if (T.phase === 'prep') rl = 'РАУНД <b>1</b><span>/' + S.rounds + '</span>';
-      else if (T.phase === 'round') rl = last && T.isLast() ? 'ПОСЛЕДНИЙ РАУНД' : 'РАУНД <b>' + T.round + '</b><span>/' + S.rounds + '</span>';
-      else if (T.phase === 'rest') rl = '<small>дальше</small>' + (last && T.round + 1 === S.rounds ? 'ПОСЛЕДНИЙ' : 'РАУНД <b>' + (T.round + 1) + '</b><span>/' + S.rounds + '</span>');
+      if (T.phase === 'prep') rl = L('round.n', { n: 1, total: S.rounds });
+      else if (T.phase === 'round') rl = last && T.isLast() ? L('round.last') : L('round.n', { n: T.round, total: S.rounds });
+      else if (T.phase === 'rest') rl = '<small>' + L('round.next') + '</small>' + (last && T.round + 1 === S.rounds ? L('round.nextLast') : L('round.n', { n: T.round + 1, total: S.rounds }));
       $('roundLabel').innerHTML = rl;
 
       this.syncWheels();
-      $('summaryText').textContent = S.rounds + ' ' + P.plural(S.rounds, ['раунд', 'раунда', 'раундов']) + ' по ' + fmt(S.roundSec) +
-        ' · ' + Math.round(S.rounds * S.roundSec / 60) + ' мин бокса';
-      $('startText').textContent = T.phase === 'done' ? 'Ещё раз' : 'Старт';
+      $('summaryText').textContent = L('summary', { rounds: L('n.rounds', { n: S.rounds }), len: fmt(S.roundSec), min: Math.round(S.rounds * S.roundSec / 60) });
+      $('startText').textContent = T.phase === 'done' ? L('btn.again') : L('btn.start');
 
       $('skipText').textContent = this.skipTarget();
       this.resetConfirm(false);
@@ -1160,17 +1193,17 @@
     skipTarget: function () {
       var T = Timer, nr = T.phase === 'prep' ? 1 : T.round + 1;
       if (T.phase === 'round') {
-        if (T.isLast()) return 'К финишу';
-        if (S.restSec > 0) return 'К отдыху';
+        if (T.isLast()) return L('skip.finish');
+        if (S.restSec > 0) return L('skip.rest');
       }
-      return nr === S.rounds && S.rounds > 1 ? 'К последнему раунду' : 'К раунду ' + nr;
+      return nr === S.rounds && S.rounds > 1 ? L('skip.last') : L('skip.round', { n: nr });
     },
     // Сброс на паузе — со второго касания: случайно задел — тренировка не пропала.
     resetTimer: null,
     resetConfirm: function (on) {
       clearTimeout(this.resetTimer);
       $('btnReset').classList.toggle('confirm', on);
-      $('resetText').textContent = on ? 'Точно сбросить?' : 'Сброс';
+      $('resetText').textContent = on ? L('reset.confirm') : L('reset');
       if (on) this.resetTimer = setTimeout(function () { UI.resetConfirm(false); }, 3000);
     },
 
@@ -1190,7 +1223,7 @@
     // Слышит ли таймер топот прямо сейчас — честно, по факту, а не по настройке.
     renderStatus: function () {
       var T = Timer, live = Stomp.listening() && S.stompMode !== 'off';
-      var how = S.stompPattern === 'double' ? 'топни дважды' : 'топни';
+      var how = S.stompPattern === 'double' ? L('how.double') : L('how.single');
       $('liveStomp').hidden = !(live && T.running() && App.stompAllowed());
       $('liveCmd').hidden = !(Listen.cmdOn && T.running());
       $('chipVoice').hidden = !Listen.supported;
@@ -1198,16 +1231,16 @@
       var parts = [];
       if (T.phase === 'idle') {
         var total = S.prepSec + S.rounds * S.roundSec + Math.max(0, S.rounds - 1) * S.restSec;
-        parts.push('тренировка ≈ ' + Math.max(1, Math.round(total / 60)) + ' мин');
+        parts.push(L('total', { min: Math.max(1, Math.round(total / 60)) }));
       }
-      if (S.stompMode !== 'off') parts.push(live ? how + ' — ' + (T.phase === 'done' ? 'ещё раз' : 'старт') : 'топот не слушается — проверь разрешения');
+      if (S.stompMode !== 'off') parts.push(live ? L(T.phase === 'done' ? 'st.again' : 'st.start', { how: how }) : L('st.deaf'));
       $('idleHint').textContent = parts.join(' · ');
       $('idleDot').hidden = S.stompMode === 'off';
       $('idleDot').classList.toggle('on', live);
 
-      $('pauseHint').textContent = (live ? how + ' или коснись экрана' : 'Коснись экрана') + ' — продолжить';
+      $('pauseHint').textContent = live ? L('pause.stomp', { how: how }) : L('pause.tap');
       $('dimText').textContent = S.rounds + ' × ' + fmt(S.roundSec);
-      $('dimHint').textContent = live ? how + ' — старт' : 'коснись экрана';
+      $('dimHint').textContent = live ? L('st.start', { how: how }) : L('dim.tap');
     },
 
     flashStomp: function () {
@@ -1216,7 +1249,7 @@
     },
     onFirstHit: function () {
       UI.wake();
-      if (!$('settings').hidden) { $('meterCount').textContent = '1-й топ… давай второй'; return; }
+      if (!$('settings').hidden) { $('meterCount').textContent = L('meter.first'); return; }
       if (!$('gate').hidden || !$('voiceLayer').hidden || !$('calLayer').hidden) return;
       if (!App.stompAllowed()) return;
       var f = $('stompFlash');
@@ -1244,12 +1277,12 @@
 
     /* ---- Настройки ---- */
     tab: 'workout',
-    TABS: { workout: 'Тренировка', sound: 'Звук и голос', hands: 'Управление без рук', screen: 'Экран' },
+    TABS: { workout: 'tab.workout', sound: 'tab.soundTitle', hands: 'tab.handsTitle', general: 'tab.general' },
     showTab: function (t) {
       this.tab = t;
       document.querySelectorAll('.sheet-nav .tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === t); });
       document.querySelectorAll('#sheetBody > section').forEach(function (sec) { sec.hidden = sec.dataset.tab !== t; });
-      $('tabTitle').textContent = this.TABS[t];
+      $('tabTitle').textContent = L(this.TABS[t]);
       $('sheetBody').scrollTop = 0;
       this.syncWheels(); // колёса меряют высоту — только когда видны
     },
@@ -1261,7 +1294,7 @@
       this.showTab(tab || this.tab);
       this.syncSettings();
       this.calibHits = 0;
-      $('meterCount').textContent = 'топни — проверим';
+      $('meterCount').textContent = L('meter.try');
       Stomp.setMeter(true);
       if (!this.meterOn) { this.meterOn = true; this.meterLoop(); }
     },
@@ -1273,11 +1306,11 @@
     },
 
     STEPS: [
-      { k: 'rounds', lbl: 'Раунды', f: String },
-      { k: 'roundSec', lbl: 'Раунд', f: fmt },
-      { k: 'restSec', lbl: 'Отдых', f: function (v) { return v ? fmt(v) : 'нет'; } },
-      { k: 'prepSec', lbl: 'Подготовка', f: function (v) { return v ? fmt(v) : 'нет'; } },
-      { k: 'warnSec', lbl: 'Сигнал за', f: function (v) { return v ? v + ' с' : 'нет'; } }
+      { k: 'rounds', lbl: 'w.rounds', f: String },
+      { k: 'roundSec', lbl: 'w.round', f: fmt },
+      { k: 'restSec', lbl: 'w.rest', f: function (v) { return v ? fmt(v) : L('none'); } },
+      { k: 'prepSec', lbl: 'w.prep', f: function (v) { return v ? fmt(v) : L('none'); } },
+      { k: 'warnSec', lbl: 'w.warn', f: function (v) { return v ? v + ' ' + L('unit.s') : L('none'); } }
     ],
     wheels: [], planWheels: [],
     syncWheels: function () { this.wheels.forEach(function (w) { w.sync(); }); },
@@ -1287,7 +1320,7 @@
       PRESETS.forEach(function (p, i) {
         var b = document.createElement('button');
         b.className = 'chip preset'; b.type = 'button'; b.dataset.i = i;
-        b.textContent = p.name;
+        b.dataset.i18n = p.key; b.textContent = L(p.key);
         b.title = p.rounds + ' × ' + fmt(p.roundSec) + ' / ' + fmt(p.restSec);
         b.onclick = function () {
           self.planWheels.forEach(function (w) { w.go(p[w.key]); });
@@ -1299,7 +1332,7 @@
       this.STEPS.forEach(function (d) {
         var cell = document.createElement('div');
         cell.className = 'wheel-cell';
-        cell.innerHTML = '<span class="lbl">' + d.lbl + '</span><div class="wheel wheel-sm" role="slider" aria-label="' + d.lbl + '"></div>';
+        cell.innerHTML = '<span class="lbl" data-i18n="' + d.lbl + '"></span><div class="wheel wheel-sm" role="slider" data-i18n-aria="' + d.lbl + '"></div>';
         $('steppers').appendChild(cell);
         self.wheels.push(makeWheel(cell.lastChild, d, changed));
       });
@@ -1331,14 +1364,14 @@
       $('btnCalNext').onclick = function () { Cal.next(); };
       $('btnCalCancel').onclick = function () { Cal.cancel(); };
       $('btnCalReset').onclick = function () {
-        S.calMic = null; S.calMotion = null; S.stompModel = null; save(); self.syncCal(); UI.toast('Обучение сброшено');
+        S.calMic = null; S.calMotion = null; S.stompModel = null; save(); self.syncCal(); UI.toast(L('cl.reset'));
       };
       $('stompMode').querySelectorAll('button').forEach(function (b) {
         b.onclick = function () {
           S.stompMode = b.dataset.v; save();
           if ((S.stompMode === 'mic' || S.stompMode === 'both') && Listen.cmdOn) {
             Listen.stopCommands(); S.commands = false; save();
-            UI.toast('Голосовые команды выключены: микрофон отдан топоту');
+            UI.toast(L('t.cmdOff'));
           }
           Stomp.apply(); self.syncSettings(); self.render(true);
         };
@@ -1353,10 +1386,13 @@
         };
       });
       $('optSens').oninput = function () { S.sens = +this.value; save(); };
+      document.querySelectorAll('[data-lang-seg] button').forEach(function (b) {
+        b.onclick = function () { self.setLang(b.dataset.v); };
+      });
       $('optCommands').onchange = function () {
         S.commands = this.checked; save();
         if (S.commands) {
-          if (Stomp.needsMic()) { S.stompMode = 'motion'; save(); Stomp.apply(); UI.toast('Топот переключён на датчик: микрофон слушает команды'); }
+          if (Stomp.needsMic()) { S.stompMode = 'motion'; save(); Stomp.apply(); UI.toast(L('t.toMotion')); }
           Listen.startCommands();
         } else Listen.stopCommands();
         self.syncSettings();
@@ -1380,20 +1416,13 @@
       var during = App.stompDuring();
       $('stompDuring').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === during); });
       $('stompDuringHint').textContent = {
-        none: Stomp.needsMic() ? 'Микрофон выключается до конца тренировки — iPhone играет громче. Топот работает до старта и на паузе.'
-          : 'Во время тренировки топот не ставит паузу.',
-        rest: 'В раунде топот не мешает, в отдыхе двойной топ — пауза.' + (Stomp.needsMic() ? ' Микрофон включён — iPhone чуть тише.' : ''),
-        all: 'Топ ставит паузу и в раунде.' + (Stomp.needsMic() ? ' Микрофон включён — iPhone чуть тише.' : '')
+        none: Stomp.needsMic() ? L('duh.noneMic') : L('duh.none'),
+        rest: L('duh.rest') + (Stomp.needsMic() ? L('duh.quieter') : ''),
+        all: L('duh.all') + (Stomp.needsMic() ? L('duh.quieter') : '')
       }[during];
       $('stompMode').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.stompMode); });
       $('stompPattern').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === S.stompPattern); });
-      var hints = {
-        off: 'Старт и пауза — касанием экрана.',
-        mic: 'Ловит глухой удар ногой по полу. Телефон можно ставить где угодно рядом.',
-        motion: 'Телефон лежит на полу или помосте — ловит вибрацию от топота. Звуки зала не мешают.',
-        both: 'Срабатывает, только когда удар и слышно, и чувствуется. Меньше ложных стартов, телефон на полу.'
-      };
-      $('stompModeHint').textContent = hints[S.stompMode];
+      $('stompModeHint').textContent = L('smh.' + S.stompMode);
       this.syncCal();
       this.fillVoices();
       this.voiceStatus();
@@ -1406,31 +1435,31 @@
     },
     syncCal: function () {
       var parts = [];
-      if (Stomp.needsMic()) parts.push(S.stompModel ? 'модель ✓ (' + Math.round(S.stompModel.acc * 100) + '%)' : S.calMic ? 'порог ✓' : null);
-      if (Stomp.needsMotion()) parts.push(S.calMotion ? 'датчик ✓' : null);
+      if (Stomp.needsMic()) parts.push(S.stompModel ? L('cal.model', { p: Math.round(S.stompModel.acc * 100) }) : S.calMic ? L('cal.thr') : null);
+      if (Stomp.needsMotion()) parts.push(S.calMotion ? L('cal.motion') : null);
       parts = parts.filter(Boolean);
-      $('calText').textContent = S.stompMode === 'off' ? 'Топот выключен' :
-        parts.length ? parts.join(' · ') + ' — работает офлайн' : 'Топни 5 раз и подвигайся 10 секунд';
+      $('calText').textContent = S.stompMode === 'off' ? L('cal.off') :
+        parts.length ? L('cal.offline', { parts: parts.join(' · ') }) : L('cal.none');
       $('btnCalReset').hidden = !(S.calMic || S.calMotion || S.stompModel);
     },
     // Голоса — кнопками: касание выбирает и сразу даёт послушать (повторное — послушать ещё раз).
     fillVoices: function () {
       var box = $('voiceChips'), self = this;
-      var list = Clips.voices.map(function (v) { return { id: v.id, name: v.label }; }).concat([{ id: 'system', name: 'iPhone' }]);
+      var list = Clips.forLang().map(function (v) { return { id: v.id, name: v.label }; }).concat([{ id: 'system', name: 'iPhone' }]);
       box.innerHTML = '';
       list.forEach(function (v) {
         var b = document.createElement('button');
-        b.type = 'button'; b.className = 'chip-opt' + (S.voiceId === v.id ? ' on' : '');
-        b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', S.voiceId === v.id ? 'true' : 'false');
+        b.type = 'button'; b.className = 'chip-opt' + (curVoice() === v.id ? ' on' : '');
+        b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', curVoice() === v.id ? 'true' : 'false');
         b.textContent = v.name;
         b.onclick = function () {
           Sound.unlock();
           if (v.id === 'system') {
-            S.voiceId = 'system'; S.sysVoiceURI = ''; Voice.loadSystem();
+            S[vKey()] = 'system'; S.sysVoiceURI = ''; Voice.loadSystem();
             if (Clips.voiceId !== 'system') Clips.load('system');
-            Voice.say('Раунд три. Бокс!');
+            Voice.say(L('say.sample'));
           } else if (Clips.voiceId === v.id) Voice.speak(['round_3']);
-          else { S.voiceId = v.id; Clips.load(v.id).then(function () { if (S.voiceId === v.id) Voice.speak(['round_3']); }); }
+          else { S[vKey()] = v.id; Clips.load(v.id).then(function () { if (curVoice() === v.id) Voice.speak(['round_3']); }); }
           save(); self.fillVoices();
         };
         box.appendChild(b);
@@ -1439,10 +1468,10 @@
     voiceStatus: function () {
       var el = $('voiceStatus'); if (!el) return;
       // Пишем, только когда есть что сказать: загрузка или проблема. Всё готово — тишина.
-      if (S.voiceId === 'system') { el.textContent = 'Голос iPhone тише нейроголоса.'; return; }
+      if (curVoice() === 'system') { el.textContent = L('vs.system'); return; }
       var n = Clips.count(), t = Clips.total;
-      if (!t) el.textContent = Clips.loading ? 'Загружаю голос…' : 'Файлы голоса не найдены — пока говорю голосом iPhone.';
-      else if (n < t) el.textContent = (Object.keys(Clips.raw).length >= t ? 'Готовлю голос ' : 'Загружаю голос ') + Math.round(n / t * 100) + '%…';
+      if (!t) el.textContent = Clips.loading ? L('vs.loading') : L('vs.missing');
+      else if (n < t) el.textContent = L(Object.keys(Clips.raw).length >= t ? 'vs.prepare' : 'vs.download', { p: Math.round(n / t * 100) });
       else el.textContent = '';
     },
 
@@ -1454,12 +1483,11 @@
     },
     onModelScore: function (p, lowHigh) {
       if ($('settings').hidden) return;
-      $('meterCount').textContent = p == null ? 'не похоже на топот (нет низа)'
-        : 'модель: ' + (p >= 0.5 ? 'топ ' : 'не топ ') + Math.round(p * 100) + '%';
+      $('meterCount').textContent = p == null ? L('meter.noLow') : L('meter.model', { verdict: L(p >= 0.5 ? 'meter.yes' : 'meter.no'), p: Math.round(p * 100) });
     },
     onCalibStomp: function () {
       this.calibHits++;
-      $('meterCount').textContent = 'Сработало: ' + this.calibHits;
+      $('meterCount').textContent = L('meter.hits', { n: this.calibHits });
       Sound.play('blip');
     },
     meterOn: false,
@@ -1528,13 +1556,13 @@
     Timer.tick(); UI.render(true); Timer.schedule();
     setTimeout(function () {
       if (App.unlocked && Sound.ctx && Sound.ctx.state !== 'running') {
-        App.regate('Нажми, чтобы вернуть звук — iPhone выключил его, пока таймер был в фоне.');
+        App.regate(L('gate.back'));
         return;
       }
       if (away > 3000 && Timer.running() && !Timer.paused) {
         var left = Math.ceil(Timer.remaining() / 1000);
-        Voice.say(Timer.phase === 'round' ? 'Раунд ' + Timer.round + '. Осталось ' + P.durWords(left)
-          : Timer.phase === 'rest' ? 'Отдых. До раунда ' + (Timer.round + 1) + ' ' + P.durWords(left) : 'Подготовка');
+        Voice.say(Timer.phase === 'round' ? L('say.round', { r: Timer.round, left: P.durWords(left, S.lang) })
+          : Timer.phase === 'rest' ? L('say.rest', { r: Timer.round + 1, left: P.durWords(left, S.lang) }) : L('say.prepShort'));
       }
     }, 600);
   });
@@ -1545,12 +1573,12 @@
 
   UI.applyLook();
   UI.buildSettings();
+  UI.applyLang();
   Voice.loadSystem();
   Clips.loadIndex().then(function () {
-    var ids = Clips.voices.map(function (v) { return v.id; });
-    if (S.voiceId !== 'system' && ids.indexOf(S.voiceId) < 0 && ids.length) { S.voiceId = ids[0]; save(); }
+    Clips.pick();
     UI.fillVoices();
-    return Clips.load(S.voiceId);
+    return Clips.load(curVoice());
   });
   UI.syncSettings();
   UI.render(true);
@@ -1558,7 +1586,7 @@
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     var hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (hadController) UI.toast('Вышла новая версия — перезапусти таймер, когда закончишь');
+      if (hadController) UI.toast(L('t.update'));
     });
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }

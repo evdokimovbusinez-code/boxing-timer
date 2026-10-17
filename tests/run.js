@@ -37,6 +37,30 @@ for (const [t, e] of [['старт', 'start'], ['пауза', 'pause'], ['про
   check('команда: ' + t, P.parseCommand(t) === e, String(P.parseCommand(t)));
 }
 
+/* ---------- Английский: те же настройки голосом и команды ---------- */
+const en = [
+  ['10 rounds of 2 minutes rest 1 minute', { rounds: 10, roundSec: 120, restSec: 60 }],
+  ['ten rounds of two minutes, one minute rest', { rounds: 10, roundSec: 120, restSec: 60 }],
+  ['12 rounds 3 minutes, 30 seconds break', { rounds: 12, roundSec: 180, restSec: 30 }],
+  ['three rounds of three minutes with a minute rest', { rounds: 3, roundSec: 180, restSec: 60 }],
+  ['round a minute and a half, rest half a minute', { roundSec: 90, restSec: 30 }],
+  ['six rounds of two and a half minutes', { rounds: 6, roundSec: 150 }],
+  ['8 rounds 2:30 rest 1:00', { rounds: 8, roundSec: 150, restSec: 60 }],
+  ['twenty five seconds rest', { restSec: 25 }],
+  ['prep 15 seconds', { prepSec: 15 }],
+  ['Five rounds of two minutes thirty seconds, rest one minute', { rounds: 5, roundSec: 150, restSec: 60 }]
+];
+for (const [t, exp] of en) {
+  const r = P.parseWorkout(t);
+  const ok = Object.keys(exp).length === Object.keys(r).length && Object.keys(exp).every(k => r[k] === exp[k]);
+  check('en фраза: ' + t, ok, ok ? '' : JSON.stringify(r));
+}
+for (const [t, e] of [['start', 'start'], ["let's go", 'start'], ['pause', 'pause'], ['stop', 'pause'], ['resume', 'resume'], ['continue', 'resume'], ['next', 'skip'], ['skip', 'skip'], ['reset', 'reset'], ['restart', 'reset'], ['banana', null]]) {
+  check('en команда: ' + t, P.parseCommand(t) === e, String(P.parseCommand(t)));
+}
+check('en: durWords', P.durWords(90, 'en') === '1 minute 30 seconds' && P.durWords(60, 'en') === '1 minute' && P.durWords(45, 'en') === '45 seconds', [P.durWords(90, 'en'), P.durWords(60, 'en'), P.durWords(45, 'en')].join(' | '));
+check('ru: durWords по-прежнему', P.durWords(90) === 'полторы минуты');
+
 /* ---------- Детектор топота ---------- */
 // Псевдослучайный генератор, чтобы тесты были повторяемыми.
 let seed = 42;
@@ -261,6 +285,24 @@ function runOld(samples, sens) {
   check('фразы: все нужные таймеру есть', need.every(i => ids.has(i)), need.filter(i => !ids.has(i)).join(','));
   const t = Object.fromEntries(l.map(x => [x.id, x.text]));
   check('фразы: склонения', t.left_2 === 'Осталось два раунда.' && t.left_5 === 'Осталось пять раундов.' && t.left_21 === 'Остался двадцать один раунд.' && t.warn_10 === 'Десять секунд!', [t.left_2, t.left_5, t.left_21, t.warn_10].join(' | '));
+}
+
+/* ---------- Фразы и интерфейс на английском ---------- */
+{
+  const PH = require('../voice-phrases.js');
+  const ru = PH.list('ru'), enl = PH.list('en');
+  check('фразы en: те же id, что и ru', ru.length === enl.length && ru.every((x, i) => x.id === enl[i].id), enl.length + ' фраз');
+  const t = Object.fromEntries(enl.map(x => [x.id, x.text]));
+  check('фразы en: текст', t.round_3 === 'Round three. Box!' && t.left_7 === 'Seven rounds left.' && t.left_1 === 'One round left.' && t.left_21 === 'Twenty-one rounds left.' && t.warn_10 === 'Ten seconds!' && t.ready_4 === 'Get ready, round four.', [t.round_3, t.left_7, t.left_21, t.ready_4].join(' | '));
+  check('фразы: без языка — русские', PH.list()[3].text === ru[3].text && /Раунд/.test(ru[3].text));
+  const I = require('../i18n.js');
+  const kr = Object.keys(I.DICT.ru), ke = Object.keys(I.DICT.en);
+  check('i18n: ключи ru и en совпадают', kr.length === ke.length && kr.every(k => k in I.DICT.en), kr.filter(k => !(k in I.DICT.en)).concat(ke.filter(k => !(k in I.DICT.ru))).join(','));
+  check('i18n: подстановка', I.t('en', 'round.n', { n: 3, total: 10 }).includes('3') && I.t('ru', 'round.n', { n: 3, total: 10 }).includes('3'));
+  check('i18n: множественное ru', I.t('ru', 'n.rounds', { n: 1 }) === '1 раунд' && I.t('ru', 'n.rounds', { n: 3 }) === '3 раунда' && I.t('ru', 'n.rounds', { n: 12 }) === '12 раундов', [1, 3, 12].map(n => I.t('ru', 'n.rounds', { n })).join(' | '));
+  check('i18n: множественное en', I.t('en', 'n.rounds', { n: 1 }) === '1 round' && I.t('en', 'n.rounds', { n: 3 }) === '3 rounds');
+  check('i18n: нет ключа — сам ключ, не падаем', I.t('en', 'no.such.key') === 'no.such.key');
+  check('i18n: пустых переводов нет', kr.every(k => I.DICT.ru[k] !== '' && I.DICT.en[k] !== ''));
 }
 
 console.log('\n' + pass + ' прошло, ' + fail + ' упало');

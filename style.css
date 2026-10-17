@@ -256,6 +256,7 @@ button:active { transform: scale(.96); }
 .gate-logo { font-weight: 800; font-variant-numeric: tabular-nums; font-size: 72px; line-height: 1; color: var(--accent); }
 .gate h1 { margin: 0; font-size: 26px; }
 .gate p { margin: 0; color: var(--muted); line-height: 1.4; }
+.gate .seg-lang { width: 240px; margin: 4px 0 0; }
 
 .voice-layer, .cal-layer { background: rgba(10, 10, 12, .96); display: grid; place-items: center; z-index: 35; color: var(--fg); }
 .voice-card { max-width: 560px; width: 100%; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }

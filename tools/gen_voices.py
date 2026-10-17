@@ -3,9 +3,9 @@
 
 Запускается в GitHub Actions (.github/workflows/voices.yml), где есть интернет для скачивания моделей.
 
-Голоса:
-  * Piper (бесплатно, офлайн-модели): ru_RU dmitri, ruslan, denis, irina.
-  * ElevenLabs (по желанию): если задан секрет ELEVENLABS_API_KEY, добавляется голос «eleven».
+Голоса (у каждого свой язык — ru или en, фразы берутся из voice-phrases.js на этом языке):
+  * Piper (бесплатно, офлайн-модели): ru — dmitri, ruslan, denis, irina; en — en-ryan, en-joe, en-alan, en-amy.
+  * ElevenLabs (по желанию): если задан секрет ELEVENLABS_API_KEY, добавляются «eleven» (ru) и «eleven-en» (en).
     Голос выбирается переменной ELEVENLABS_VOICE_ID.
 
 Повторный запуск озвучивает только новые или изменённые фразы (сверяет текст в manifest.json).
@@ -24,18 +24,22 @@ VOICES_DIR = ROOT / "voices"
 MODELS_DIR = Path(os.environ.get("PIPER_MODELS", "/tmp/piper-models"))
 
 PIPER_VOICES = {
-    # id: (модель, подпись в настройках, темп: <1 быстрее)
-    "dmitri": ("ru_RU-dmitri-medium", "Дмитрий", 0.9),
-    "ruslan": ("ru_RU-ruslan-medium", "Руслан", 0.9),
-    "denis": ("ru_RU-denis-medium", "Денис", 0.9),
-    "irina": ("ru_RU-irina-medium", "Ирина", 0.92),
+    # id: (модель, подпись в настройках, темп: <1 быстрее, язык фраз)
+    "dmitri": ("ru_RU-dmitri-medium", "Дмитрий", 0.9, "ru"),
+    "ruslan": ("ru_RU-ruslan-medium", "Руслан", 0.9, "ru"),
+    "denis": ("ru_RU-denis-medium", "Денис", 0.9, "ru"),
+    "irina": ("ru_RU-irina-medium", "Ирина", 0.92, "ru"),
+    "en-ryan": ("en_US-ryan-medium", "Ryan", 0.9, "en"),
+    "en-joe": ("en_US-joe-medium", "Joe", 0.9, "en"),
+    "en-alan": ("en_GB-alan-medium", "Alan", 0.9, "en"),
+    "en-amy": ("en_US-amy-medium", "Amy", 0.92, "en"),
 }
-HF = "https://huggingface.co/rhasspy/piper-voices/resolve/main/ru/ru_RU/{name}/medium/{model}{ext}?download=true"
+HF = "https://huggingface.co/rhasspy/piper-voices/resolve/main/{lang}/{loc}/{name}/medium/{model}{ext}?download=true"
 
 
-def phrases():
+def phrases(lang="ru"):
     out = subprocess.check_output(
-        ["node", "-e", "process.stdout.write(JSON.stringify(require('./voice-phrases.js').list()))"],
+        ["node", "-e", "process.stdout.write(JSON.stringify(require('./voice-phrases.js').list(process.argv[1])))", lang],
         cwd=ROOT,
     )
     return json.loads(out)
@@ -60,52 +64,68 @@ def load_manifest(vdir: Path):
     return {"clips": {}}
 
 
-def save_manifest(vdir: Path, label: str, engine: str, clips: dict):
-    data = {"label": label, "engine": engine, "clips": clips}
+def save_manifest(vdir: Path, label: str, engine: str, clips: dict, lang: str = "ru"):
+    data = {"label": label, "engine": engine, "lang": lang, "clips": clips}
     (vdir / "manifest.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), "utf-8")
 
 
-def gen_piper(items):
+def gen_piper():
     from piper import PiperVoice, SynthesisConfig
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    for vid, (model, label, scale) in PIPER_VOICES.items():
-        onnx = MODELS_DIR / f"{model}.onnx"
-        for ext in (".onnx", ".onnx.json"):
-            path = MODELS_DIR / f"{model}{ext}"
-            if not path.exists():
-                url = HF.format(name=vid, model=model, ext=ext)
-                print("download", url, flush=True)
-                urllib.request.urlretrieve(url, path)
-        voice = PiperVoice.load(onnx)
-        cfg = SynthesisConfig(length_scale=scale)
-        vdir = VOICES_DIR / vid
-        vdir.mkdir(parents=True, exist_ok=True)
-        old = load_manifest(vdir)["clips"]
-        clips = {}
-        made = 0
-        for it in items:
-            mp3 = vdir / f"{it['id']}.mp3"
-            if old.get(it["id"]) == it["text"] and mp3.exists():
-                clips[it["id"]] = it["text"]
-                continue
-            with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
-                with wave.open(tmp.name, "wb") as wf:
-                    voice.synthesize_wav(it["text"], wf, syn_config=cfg)
-                to_mp3(Path(tmp.name), mp3)
+    for vid, (model, label, scale, lang) in PIPER_VOICES.items():
+        # Один голос не скачался — остальные (и русские) всё равно озвучиваются.
+        try:
+            gen_piper_voice(PiperVoice, SynthesisConfig, vid, model, label, scale, lang)
+        except Exception as e:  # noqa: BLE001
+            print(f"{vid}: ОШИБКА, пропускаю — {e}", flush=True)
+
+
+def gen_piper_voice(PiperVoice, SynthesisConfig, vid, model, label, scale, lang):
+    items = phrases(lang)
+    loc = model.split("-")[0]  # ru_RU, en_US, en_GB
+    name = model.split("-")[1]
+    onnx = MODELS_DIR / f"{model}.onnx"
+    for ext in (".onnx", ".onnx.json"):
+        path = MODELS_DIR / f"{model}{ext}"
+        if not path.exists():
+            url = HF.format(lang=loc.split("_")[0], loc=loc, name=name, model=model, ext=ext)
+            print("download", url, flush=True)
+            urllib.request.urlretrieve(url, path)
+    voice = PiperVoice.load(onnx)
+    cfg = SynthesisConfig(length_scale=scale)
+    vdir = VOICES_DIR / vid
+    vdir.mkdir(parents=True, exist_ok=True)
+    old = load_manifest(vdir)["clips"]
+    clips = {}
+    made = 0
+    for it in items:
+        mp3 = vdir / f"{it['id']}.mp3"
+        if old.get(it["id"]) == it["text"] and mp3.exists():
             clips[it["id"]] = it["text"]
-            made += 1
-        save_manifest(vdir, label, "piper", clips)
-        print(f"{vid}: {made} new, {len(clips)} total", flush=True)
+            continue
+        with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
+            with wave.open(tmp.name, "wb") as wf:
+                voice.synthesize_wav(it["text"], wf, syn_config=cfg)
+            to_mp3(Path(tmp.name), mp3)
+        clips[it["id"]] = it["text"]
+        made += 1
+    save_manifest(vdir, label, "piper", clips, lang)
+    print(f"{vid}: {made} new, {len(clips)} total", flush=True)
 
 
-def gen_eleven(items):
+def gen_eleven():
     key = os.environ.get("ELEVENLABS_API_KEY")
     if not key:
         print("ElevenLabs: секрет ELEVENLABS_API_KEY не задан — пропускаю")
         return
+    for lang, vid in (("ru", "eleven"), ("en", "eleven-en")):
+        gen_eleven_lang(key, lang, vid, phrases(lang))
+
+
+def gen_eleven_lang(key, lang, vid, items):
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID") or "pNInz6obpgDQGcFmaJgB"
-    vdir = VOICES_DIR / "eleven"
+    vdir = VOICES_DIR / vid
     vdir.mkdir(parents=True, exist_ok=True)
     old = load_manifest(vdir)
     clips = {}
@@ -130,11 +150,11 @@ def gen_eleven(items):
             to_mp3(Path(tmp.name), mp3)
         clips[it["id"]] = it["text"]
         made += 1
-    save_manifest(vdir, "ElevenLabs", "elevenlabs", clips)
+    save_manifest(vdir, "ElevenLabs", "elevenlabs", clips, lang)
     data = json.loads((vdir / "manifest.json").read_text("utf-8"))
     data["voice_id"] = voice_id
     (vdir / "manifest.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), "utf-8")
-    print(f"eleven: {made} new, {len(clips)} total")
+    print(f"{vid}: {made} new, {len(clips)} total")
 
 
 def write_index():
@@ -143,18 +163,19 @@ def write_index():
         m = vdir / "manifest.json"
         if vdir.is_dir() and m.exists():
             d = json.loads(m.read_text("utf-8"))
-            voices.append({"id": vdir.name, "label": d.get("label", vdir.name), "engine": d.get("engine"), "count": len(d["clips"])})
-    order = {"eleven": 0, "dmitri": 1, "ruslan": 2, "denis": 3, "irina": 4}
+            voices.append({"id": vdir.name, "label": d.get("label", vdir.name), "engine": d.get("engine"),
+                           "lang": d.get("lang", "ru"), "count": len(d["clips"])})
+    order = {"eleven": 0, "dmitri": 1, "ruslan": 2, "denis": 3, "irina": 4,
+             "eleven-en": 10, "en-ryan": 11, "en-joe": 12, "en-alan": 13, "en-amy": 14}
     voices.sort(key=lambda v: order.get(v["id"], 9))
     (VOICES_DIR / "index.json").write_text(json.dumps({"voices": voices}, ensure_ascii=False, indent=1), "utf-8")
     print("index:", [v["id"] for v in voices])
 
 
 if __name__ == "__main__":
-    items = phrases()
-    print(len(items), "phrases")
+    print(len(phrases("ru")), "phrases ru,", len(phrases("en")), "en")
     VOICES_DIR.mkdir(exist_ok=True)
     if "--no-piper" not in sys.argv:
-        gen_piper(items)
-    gen_eleven(items)
+        gen_piper()
+    gen_eleven()
     write_index()

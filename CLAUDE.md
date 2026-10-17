@@ -23,7 +23,7 @@
 ## Стек и правила
 - Без сборки: чистые HTML/CSS/JS, ES5-стиль (`var`, функции) — так и продолжать, никаких фреймворков и бандлеров.
 - `detect.js`, `parse.js`, `voice-phrases.js` — чистая логика без браузерных API (UMD, `globalThis`), всё покрыто тестами.
-- Тесты: `node tests/run.js` (сейчас 62, все зелёные). Любое изменение логики — сначала тест.
+- Тесты: `node tests/run.js` (сейчас 94, все зелёные). Любое изменение логики — сначала тест.
 - Локально: `python3 -m http.server 8000`. Отладка клавишами: Пробел — старт/пауза, `S` — «топ», `N` — дальше, `R` — сброс.
 - При изменении файлов, которые должны работать офлайн, — добавить в `FILES` в `sw.js` и поднять версию `CACHE`.
 - Коммиты на русском, описывают «что и зачем».
@@ -34,10 +34,13 @@
 - `detect.js` — OnsetDetector (атака относительно огибающей, адаптивный фон), DoubleTap/SingleTap (защита от ритма),
   PeakCollector, `features`/`lowHigh`/`trainModel`/`predict` (логистическая регрессия «топот / не топот»).
 - `stomp-worklet.js` — детектор в AudioWorklet (грузится после `detect.js` через `audioWorklet.addModule`).
-- `voice-phrases.js` — единый список 111 фраз (id → текст). Приложение играет `voices/<голос>/<id>.mp3`.
-- `tools/gen_voices.py` + `.github/workflows/voices.yml` — озвучка в GitHub Actions: Piper (dmitri, ruslan, denis, irina);
+- `voice-phrases.js` — 111 фраз на каждом языке (`list('ru'|'en')`, id одинаковые). Приложение играет `voices/<голос>/<id>.mp3`;
+  у голоса в `voices/index.json` есть `lang`.
+- `tools/gen_voices.py` + `.github/workflows/voices.yml` — озвучка в GitHub Actions: Piper ru (dmitri, ruslan, denis, irina) и en (en-ryan, en-joe, en-alan, en-amy);
   ElevenLabs — если в репо есть секрет `ELEVENLABS_API_KEY` (+ переменная `ELEVENLABS_VOICE_ID`). Запускается сам при изменении фраз.
-- `parse.js` — разбор русских фраз («10 раундов по 2 минуты, отдых минута») и команд.
+- `parse.js` — разбор фраз и команд на русском и английском («10 раундов по 2 минуты, отдых минута» / «10 rounds of 2 minutes, rest 1 minute»).
+- `i18n.js` — все тексты интерфейса, ru и en (`L('ключ', {n})` в `app.js`; в разметке `data-i18n`, `data-i18n-html`, `data-i18n-aria`).
+  **Любая новая строка — сразу в оба языка** (тест проверяет, что ключи совпадают). Язык — `S.lang`; голос свой для каждого языка (`voiceId`/`voiceIdEn`).
 - `sw.js` — офлайн-кэш stale-while-revalidate (старт из кэша, обновление на следующий запуск).
 
 ## Выученные грабли iOS (не наступать снова)

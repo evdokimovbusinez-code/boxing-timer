@@ -24,10 +24,21 @@
   }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
+  var EN_ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+    'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  var EN_TENS = { 2: 'twenty', 3: 'thirty', 4: 'forty', 5: 'fifty', 6: 'sixty' };
+  function wordsEn(n) {
+    if (n < 20) return EN_ONES[n];
+    var t = Math.floor(n / 10), u = n % 10;
+    return EN_TENS[t] + (u ? '-' + EN_ONES[u] : '');
+  }
+
   var MAX_ROUNDS = 30;
   var WARN = [5, 10, 15, 20, 30];
 
-  function list() {
+  /** Фразы на языке lang ('ru' по умолчанию или 'en'). id одинаковые — приложению всё равно, на каком языке файл. */
+  function list(lang) {
+    if (lang === 'en') return listEn();
     var out = [];
     function add(id, text) { out.push({ id: id, text: text }); }
     add('prep', 'Приготовиться!');
@@ -52,7 +63,30 @@
     return out;
   }
 
-  var api = { list: list, words: words, plural: plural, MAX_ROUNDS: MAX_ROUNDS, WARN: WARN };
+  function listEn() {
+    var out = [];
+    function add(id, text) { out.push({ id: id, text: text }); }
+    add('prep', 'Get ready!');
+    add('start', 'Start!');
+    add('box', 'Box!');
+    for (var r = 1; r <= MAX_ROUNDS; r++) add('round_' + r, 'Round ' + wordsEn(r) + '. Box!');
+    add('last_round', 'Last round. Box!');
+    add('stop_rest', 'Stop! Rest.');
+    add('left_1', 'One round left.');
+    for (var n = 2; n <= MAX_ROUNDS; n++) add('left_' + n, cap(wordsEn(n)) + ' rounds left.');
+    WARN.forEach(function (s) { add('warn_' + s, cap(wordsEn(s)) + ' seconds!'); });
+    for (var k = 1; k <= MAX_ROUNDS; k++) add('ready_' + k, 'Get ready, round ' + wordsEn(k) + '.');
+    add('ready_last', 'Get ready, last round.');
+    add('half', 'Halfway!');
+    for (var c = 1; c <= 5; c++) add('cnt_' + c, cap(wordsEn(c)) + '!');
+    add('pause', 'Pause.');
+    add('resume', "Let's go!");
+    add('reset', 'Reset.');
+    add('finish', 'Workout complete. Great job!');
+    return out;
+  }
+
+  var api = { list: list, words: words, plural: plural, MAX_ROUNDS: MAX_ROUNDS, WARN: WARN, LANGS: ['ru', 'en'] };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.BoxPhrases = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

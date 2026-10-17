@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/piper-models
-          key: piper-ru-medium-v1
+          key: piper-ru-en-medium-v2
 
       - name: Озвучка
         env:
