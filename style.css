@@ -316,6 +316,8 @@ button:active { transform: scale(.96); }
 .tab.on { background: var(--panel-2); color: var(--fg); }
 .tab.on svg { color: var(--accent); }
 .sheet-nav .btn-done { margin-left: auto; }
+/* узкий экран (телефон): у неактивных вкладок — только значок, подпись — у текущей, как в панели вкладок iOS */
+@container (max-width: 960px) { .tab:not(.on) span { display: none; } .tab { padding: 0 12px; } }
 
 .sheet-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .sheet-body {
@@ -376,6 +378,23 @@ body[data-phase="idle"] .phase-label, body[data-phase="done"] .phase-label { dis
 .row em:empty { display: none; }
 .row input[type="range"] { flex: none; width: 46%; accent-color: var(--accent); }
 .row-btns { flex: none; display: flex; gap: 8px; }
+/* Прогресс: неделя к цели, серия, календарь 12 недель */
+.wk-bar { height: 8px; border-radius: 4px; background: var(--bg); overflow: hidden; margin: -2px 0 8px; }
+.wk-bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width .3s; }
+.pr-big { flex: none; white-space: nowrap; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.heat-wrap { padding: 12px 14px; }
+.heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); grid-template-columns: repeat(12, 1fr); gap: 3px; aspect-ratio: 12 / 7; max-height: 128px; }
+.heat i { border-radius: 3px; background: var(--panel-2); }
+.heat i.l1 { background: rgba(255, 51, 71, .3); } .heat i.l2 { background: rgba(255, 51, 71, .55); }
+.heat i.l3 { background: rgba(255, 51, 71, .8); } .heat i.l4 { background: var(--accent); }
+.heat i.lf { background: transparent; }
+.heat i.today { box-shadow: inset 0 0 0 2px var(--fg); }
+.days { display: flex; gap: 4px; min-width: 0; }
+.day { width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--bg); color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; position: relative; padding: 0; }
+.day.on { background: var(--accent); color: #fff; }
+.pick.pick-time { padding-right: 12px; background-image: none; min-width: 84px; text-align: center; }
+.summary-week { margin-top: 1.4cqh; font-weight: 800; font-size: clamp(16px, 2.8cqw, 26px); color: var(--warn); }
+.summary-week:empty { display: none; }
 .row-link { justify-content: flex-start; color: inherit; text-decoration: none; cursor: pointer; }
 .row-link > span { flex: 1; }
 .row-link .heart { font-size: 22px; color: var(--accent); }
