@@ -1,10 +1,9 @@
 name: Звуки (кандидаты с Wikimedia Commons)
 
 # Скачивает кандидатов в сигналы (гонг, колокол, свисток, горн, «палочки», тиканье) только со свободными лицензиями,
-# обрабатывает ffmpeg и коммитит в sounds/cand/ той же ветки. Запускается при изменении tools/fetch_sounds.py или вручную.
+# обрабатывает ffmpeg и коммитит в sounds/cand/ той же ветки. Только вручную (Actions → Run workflow) на рабочей ветке:
+# сигналы уже выбраны, а на push он сам залил кандидатов в main после слияния.
 on:
-  push:
-    paths: [tools/fetch_sounds.py, .github/workflows/sounds.yml]
   workflow_dispatch:
 
 permissions:

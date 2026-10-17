@@ -109,6 +109,7 @@ body.eco[data-phase="prep"][data-warn="1"] #root { animation: none; }
   position: absolute; inset: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr); /* колонка не шире экрана, даже если цифры шире — их ужмёт UI.fitClock */
   padding: calc(8px + var(--st)) calc(16px + var(--sx)) calc(12px + var(--sb)) calc(16px + var(--sx));
   gap: 8px;
 }

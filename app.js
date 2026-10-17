@@ -1267,7 +1267,7 @@
 
   /* ================= Интерфейс ================= */
   var UI = {
-    lastKey: '', lastClock: '', lastActive: now(),
+    lastKey: '', lastClock: '', lastFit: '', lastActive: now(),
 
     // Язык: тексты из словаря по data-i18n (текст), data-i18n-html (с разметкой), data-i18n-aria (подпись для VoiceOver).
     applyLang: function () {
@@ -1291,6 +1291,18 @@
       document.body.classList.toggle('flip', !!S.flip);
       document.body.classList.toggle('eco', !!S.eco);
       document.body.style.setProperty('--digits', FONTS[S.font] || FONTS.rounded);
+      this.fitClock(true);
+    },
+    // Цифры не шире места между вырезом и краем: размер в CSS — от ширины экрана, а ширина цифр зависит от шрифта.
+    // Меряем только при смене фазы, длины, шрифта или размера экрана; не влезают — уменьшаем ровно насколько нужно.
+    fitClock: function (force) {
+      var c = $('clock'), box = c.parentNode, b = document.body;
+      var key = [b.dataset.phase, b.dataset.paused, this.lastClock.length, S.font, box.clientWidth, box.clientHeight].join('|');
+      if (!force && key === this.lastFit) return;
+      this.lastFit = key;
+      c.style.zoom = '';
+      var w = c.scrollWidth, room = box.clientWidth;
+      if (w > room && room > 0) c.style.zoom = (room / w).toFixed(3);
     },
     syncOpts: function () {
       document.querySelectorAll('[data-snd]').forEach(function (box) {
@@ -1318,6 +1330,7 @@
         var clock = $('clock');
         clock.textContent = txt;
         clock.classList.toggle('long', txt.length > 4);
+        this.fitClock();
         // Последние 3 секунды цифры «толкаются» в такт бипам — видно краем глаза.
         if (T.running() && !T.paused && sec >= 1 && sec <= 3) this.animate(clock, 'beat');
       }
@@ -1336,6 +1349,7 @@
 
       b.dataset.phase = T.phase;
       b.dataset.paused = T.paused ? '1' : '0';
+      this.fitClock();
       this.syncBar();
 
       // Сверху слева — что сейчас, справа — какой раунд (в отдыхе — какой следующий).
@@ -1770,7 +1784,7 @@
     if (e.key === 'r' || e.key === 'к') Timer.reset();
   });
 
-  window.addEventListener('resize', function () { if (!App.unlocked) UI.renderStatus(); }); // совет про поворот
+  window.addEventListener('resize', function () { UI.fitClock(true); if (!App.unlocked) UI.renderStatus(); }); // совет про поворот
 
   var hiddenAt = 0;
   document.addEventListener('visibilitychange', function () {
@@ -1815,5 +1829,5 @@
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
 
-  window.BoxTimer = { Timer: Timer, Plan: Plan, Coach: Coach, Stomp: Stomp, Sound: Sound, Voice: Voice, Clips: Clips, App: App, Cal: Cal, Wake: Wake, S: S };
+  window.BoxTimer = { Timer: Timer, UI: UI, Plan: Plan, Coach: Coach, Stomp: Stomp, Sound: Sound, Voice: Voice, Clips: Clips, App: App, Cal: Cal, Wake: Wake, S: S };
 })();
